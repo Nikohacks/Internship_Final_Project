@@ -1,0 +1,26 @@
+service:
+  flush: 1s
+  log_level: info
+
+input:
+  type: winevtlog
+  tag: windows.winevtlog
+  channels:
+    - system
+    - Security
+  interval: 1s
+  lookback: 5s
+  render_event_as_text: true
+  render_event_text_key: rendered_text
+
+outputs:
+  - name: terminal
+    type: terminal
+    enabled: true
+
+  - name: fluentd
+    type: forward
+    enabled: true
+    host: 127.0.0.1
+    port: 22424
+    time_as_integer: true

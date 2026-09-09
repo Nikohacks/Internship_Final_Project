@@ -2,6 +2,9 @@ venv
 .claude
 */node_modules
 */.env
-pipeline
+pipeline/fluentd
+pipeline/victoria-logs
+pipeline/Vmalert
 __pycache__
 */data
+frontend
