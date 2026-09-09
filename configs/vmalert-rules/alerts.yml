@@ -1,0 +1,2367 @@
+﻿groups:
+- name: Sigma rules
+  type: vlogs
+  interval: 10s
+  rules:
+  - alert: Azure_AD_Health_Monitoring_Agent_Registry_Keys_Access
+    expr: (event.code:in(4656, 4663)) AND ObjectType:="Key" AND ObjectName:="\\REGISTRY\\MACHINE\\SOFTWARE\\Microsoft\\Microsoft
+      Online\\Reporting\\MonitoringAgent" AND NOT (ProcessName:"Microsoft.Identity.Health.Adfs.DiagnosticsAgent.exe"
+      OR ProcessName:"Microsoft.Identity.Health.Adfs.InsightsService.exe" OR ProcessName:"Microsoft.Identity.Health.Adfs.MonitoringAgent.Startup.exe"
+      OR ProcessName:"Microsoft.Identity.Health.Adfs.PshSurrogate.exe" OR ProcessName:"Microsoft.Identity.Health.Common.Clients.ResourceMonitor.exe")
+      | stats count() as matches | filter matches:>0
+    for: 0s
+    labels:
+      severity: medium
+      sigma_id: ff151c33-45fa-475d-af4f-c2f93571f4fe
+    annotations:
+      summary: Azure AD Health Monitoring Agent Registry Keys Access
+      description: 'This detection uses Windows security events to detect suspicious
+        access attempts to the registry key of Azure AD Health monitoring agent.
+
+        This detection requires an access control entry (ACE) on the system access
+        control list (SACL) of the following securable object HKLM\SOFTWARE\Microsoft\Microsoft
+        Online\Reporting\MonitoringAgent.
+
+        '
+      author: Roberto Rodriguez (Cyb3rWard0g), OTR (Open Threat Research), MSTIC
+      tags: attack.discovery, attack.t1012
+      references: 'https://o365blog.com/post/hybridhealthagent/
+
+        https://github.com/OTRF/Set-AuditRule/blob/c3dec5443414231714d850565d364ca73475ade5/rules/registry/aad_connect_health_monitoring_agent.yml'
+  - alert: Azure_AD_Health_Service_Agents_Registry_Keys_Access
+    expr: (event.code:in(4656, 4663)) AND ObjectType:="Key" AND ObjectName:="\\REGISTRY\\MACHINE\\SOFTWARE\\Microsoft\\ADHealthAgent"
+      AND NOT (ProcessName:"Microsoft.Identity.Health.Adfs.DiagnosticsAgent.exe" OR
+      ProcessName:"Microsoft.Identity.Health.Adfs.InsightsService.exe" OR ProcessName:"Microsoft.Identity.Health.Adfs.MonitoringAgent.Startup.exe"
+      OR ProcessName:"Microsoft.Identity.Health.Adfs.PshSurrogate.exe" OR ProcessName:"Microsoft.Identity.Health.Common.Clients.ResourceMonitor.exe")
+      | stats count() as matches | filter matches:>0
+    for: 0s
+    labels:
+      severity: medium
+      sigma_id: 1d2ab8ac-1a01-423b-9c39-001510eae8e8
+    annotations:
+      summary: Azure AD Health Service Agents Registry Keys Access
+      description: 'This detection uses Windows security events to detect suspicious
+        access attempts to the registry key values and sub-keys of Azure AD Health
+        service agents (e.g AD FS).
+
+        Information from AD Health service agents can be used to potentially abuse
+        some of the features provided by those services in the cloud (e.g. Federation).
+
+        This detection requires an access control entry (ACE) on the system access
+        control list (SACL) of the following securable object: HKLM:\SOFTWARE\Microsoft\ADHealthAgent.
+
+        Make sure you set the SACL to propagate to its sub-keys.
+
+        '
+      author: Roberto Rodriguez (Cyb3rWard0g), OTR (Open Threat Research), MSTIC
+      tags: attack.discovery, attack.t1012
+      references: 'https://o365blog.com/post/hybridhealthagent/
+
+        https://github.com/OTRF/Set-AuditRule/blob/c3dec5443414231714d850565d364ca73475ade5/rules/registry/aad_connect_health_service_agent.yml'
+  - alert: Powerview_Add_DomainObjectAcl_DCSync_AD_Extend_Right
+    expr: event.code:=5136 AND AttributeLDAPDisplayName:="ntSecurityDescriptor" AND
+      (AttributeValue:"1131f6ad-9c07-11d1-f79f-00c04fc2dcd2" OR AttributeValue:"1131f6aa-9c07-11d1-f79f-00c04fc2dcd2"
+      OR AttributeValue:"89e95b76-444d-4c62-991a-0facbeda640c") AND NOT (ObjectClass:in("dnsNode",
+      "dnsZoneScope", "dnsZone")) | stats count() as matches | filter matches:>0
+    for: 0s
+    labels:
+      severity: high
+      sigma_id: 2c99737c-585d-4431-b61a-c911d86ff32f
+    annotations:
+      summary: Powerview Add-DomainObjectAcl DCSync AD Extend Right
+      description: Backdooring domain object to grant the rights associated with DCSync
+        to a regular user or machine account using Powerview\Add-DomainObjectAcl DCSync
+        Extended Right cmdlet, will allow to re-obtain the pwd hashes of any user/computer
+      author: Samir Bousseaden, Roberto Rodriguez @Cyb3rWard0g, oscd.community, Tim
+        Shelton, Maxence Fossat
+      tags: attack.privilege-escalation, attack.persistence, attack.t1098
+      references: 'https://twitter.com/menasec1/status/1111556090137903104
+
+        https://www.specterops.io/assets/resources/an_ace_up_the_sleeve.pdf'
+  - alert: AD_Privileged_Users_or_Groups_Reconnaissance
+    expr: event.code:=4661 AND (ObjectType:in("SAM_USER", "SAM_GROUP")) AND (ObjectName:~"-512$"
+      OR ObjectName:~"-502$" OR ObjectName:~"-500$" OR ObjectName:~"-505$" OR ObjectName:~"-519$"
+      OR ObjectName:~"-520$" OR ObjectName:~"-544$" OR ObjectName:~"-551$" OR ObjectName:~"-555$"
+      OR ObjectName:"admin") AND NOT user.name:~"\\$$" | stats count() as matches
+      | filter matches:>0
+    for: 0s
+    labels:
+      severity: high
+      sigma_id: 35ba1d85-724d-42a3-889f-2e2362bcaf23
+    annotations:
+      summary: AD Privileged Users or Groups Reconnaissance
+      description: Detect priv users or groups recon based on 4661 eventid and known
+        privileged users or groups SIDs
+      author: Samir Bousseaden
+      tags: attack.discovery, attack.t1087.002
+      references: https://web.archive.org/web/20230329163438/https://blog.menasec.net/2019/02/threat-hunting-5-detecting-enumeration.html
+  - alert: ADCS_Certificate_Template_Configuration_Vulnerability_with_Risky_EKU
+    expr: event.code:=4898 AND (TemplateContent:"1.3.6.1.5.5.7.3.2" OR TemplateContent:"1.3.6.1.5.2.3.4"
+      OR TemplateContent:"1.3.6.1.4.1.311.20.2.2" OR TemplateContent:"2.5.29.37.0")
+      AND TemplateContent:"CT_FLAG_ENROLLEE_SUPPLIES_SUBJECT" OR event.code:=4899
+      AND (NewTemplateContent:"1.3.6.1.5.5.7.3.2" OR NewTemplateContent:"1.3.6.1.5.2.3.4"
+      OR NewTemplateContent:"1.3.6.1.4.1.311.20.2.2" OR NewTemplateContent:"2.5.29.37.0")
+      AND NewTemplateContent:"CT_FLAG_ENROLLEE_SUPPLIES_SUBJECT" | stats count() as
+      matches | filter matches:>0
+    for: 0s
+    labels:
+      severity: high
+      sigma_id: bfbd3291-de87-4b7c-88a2-d6a5deb28668
+    annotations:
+      summary: ADCS Certificate Template Configuration Vulnerability with Risky EKU
+      description: Detects certificate creation with template allowing risk permission
+        subject and risky EKU
+      author: Orlinum , BlueDefenZer
+      tags: attack.privilege-escalation, attack.credential-access
+      references: https://www.specterops.io/assets/resources/Certified_Pre-Owned.pdf
+  - alert: AD_Object_WriteDAC_Access
+    expr: event.code:=4662 AND ObjectServer:="DS" AND AccessMask:="0x40000" AND (ObjectType:in("19195a5b-6da0-11d0-afd3-00c04fd930c9",
+      "domainDNS")) | stats count() as matches | filter matches:>0
+    for: 0s
+    labels:
+      severity: critical
+      sigma_id: 028c7842-4243-41cd-be6f-12f3cf1a26c7
+    annotations:
+      summary: AD Object WriteDAC Access
+      description: Detects WRITE_DAC access to a domain object
+      author: Roberto Rodriguez @Cyb3rWard0g
+      tags: attack.defense-impairment, attack.t1222.001
+      references: 'https://threathunterplaybook.com/hunts/windows/180815-ADObjectAccessReplication/notebook.html
+
+        https://threathunterplaybook.com/library/windows/active_directory_replication.html
+
+        https://threathunterplaybook.com/hunts/windows/190101-ADModDirectoryReplication/notebook.html'
+  - alert: Active_Directory_Replication_from_Non_Machine_Account
+    expr: event.code:=4662 AND AccessMask:="0x100" AND (Properties:"1131f6aa-9c07-11d1-f79f-00c04fc2dcd2"
+      OR Properties:"1131f6ad-9c07-11d1-f79f-00c04fc2dcd2" OR Properties:"89e95b76-444d-4c62-991a-0facbeda640c")
+      AND NOT (user.name:~"\\$$" OR user.name:="MSOL_"*) | stats count() as matches
+      | filter matches:>0
+    for: 0s
+    labels:
+      severity: critical
+      sigma_id: 17d619c1-e020-4347-957e-1d1207455c93
+    annotations:
+      summary: Active Directory Replication from Non Machine Account
+      description: Detects potential abuse of Active Directory Replication Service
+        (ADRS) from a non machine account to request credentials.
+      author: Roberto Rodriguez @Cyb3rWard0g
+      tags: attack.credential-access, attack.t1003.006
+      references: 'https://threathunterplaybook.com/hunts/windows/180815-ADObjectAccessReplication/notebook.html
+
+        https://threathunterplaybook.com/library/windows/active_directory_replication.html
+
+        https://threathunterplaybook.com/hunts/windows/190101-ADModDirectoryReplication/notebook.html'
+  - alert: Potential_AD_User_Enumeration_From_Non_Machine_Account
+    expr: event.code:=4662 AND ObjectType:"bf967aba-0de6-11d0-a285-00aa003049e2" AND
+      (AccessMask:~".*1." OR AccessMask:~".*3." OR AccessMask:~".*4." OR AccessMask:~".*7."
+      OR AccessMask:~".*9." OR AccessMask:~".*B." OR AccessMask:~".*D." OR AccessMask:~".*F.")
+      AND NOT (user.name:~"\\$$" OR user.name:="MSOL_"*) | stats count() as matches
+      | filter matches:>0
+    for: 0s
+    labels:
+      severity: medium
+      sigma_id: ab6bffca-beff-4baa-af11-6733f296d57a
+    annotations:
+      summary: Potential AD User Enumeration From Non-Machine Account
+      description: Detects read access to a domain user from a non-machine account
+      author: Maxime Thiebaut (@0xThiebaut)
+      tags: attack.discovery, attack.t1087.002
+      references: 'https://www.specterops.io/assets/resources/an_ace_up_the_sleeve.pdf
+
+        http://www.stuffithoughtiknew.com/2019/02/detecting-bloodhound.html
+
+        https://learn.microsoft.com/en-us/windows/win32/adschema/attributes-all
+
+        https://learn.microsoft.com/en-us/previous-versions/windows/it-pro/windows-10/security/threat-protection/auditing/event-4662'
+  - alert: Enabled_User_Right_in_AD_to_Control_User_Objects
+    expr: event.code:=4704 AND PrivilegeList:"SeEnableDelegationPrivilege" | stats
+      count() as matches | filter matches:>0
+    for: 0s
+    labels:
+      severity: high
+      sigma_id: 311b6ce2-7890-4383-a8c2-663a9f6b43cd
+    annotations:
+      summary: Enabled User Right in AD to Control User Objects
+      description: Detects scenario where if a user is assigned the SeEnableDelegationPrivilege
+        right in Active Directory it would allow control of other AD user objects.
+      author: '@neu5ron'
+      tags: attack.privilege-escalation, attack.persistence, attack.t1098
+      references: https://blog.harmj0y.net/activedirectory/the-most-dangerous-user-right-you-probably-have-never-heard-of/
+  - alert: Active_Directory_User_Backdoors
+    expr: event.code:=4738 AND NOT (AllowedToDelegateTo:in("", "-") OR AllowedToDelegateTo:"")
+      OR event.code:=5136 AND AttributeLDAPDisplayName:="msDS-AllowedToDelegateTo"
+      OR event.code:=5136 AND ObjectClass:="user" AND AttributeLDAPDisplayName:="servicePrincipalName"
+      OR event.code:=5136 AND AttributeLDAPDisplayName:="msDS-AllowedToActOnBehalfOfOtherIdentity"
+      | stats count() as matches | filter matches:>0
+    for: 0s
+    labels:
+      severity: high
+      sigma_id: 300bac00-e041-4ee2-9c36-e262656a6ecc
+    annotations:
+      summary: Active Directory User Backdoors
+      description: Detects scenarios where one can control another users or computers
+        account without having to use their credentials.
+      author: '@neu5ron'
+      tags: attack.privilege-escalation, attack.t1098, attack.persistence
+      references: 'https://msdn.microsoft.com/en-us/library/cc220234.aspx
+
+        https://adsecurity.org/?p=3466
+
+        https://blog.harmj0y.net/redteaming/another-word-on-delegation/'
+  - alert: Weak_Encryption_Enabled_and_Kerberoast
+    expr: event.code:=4738 AND ((NewUacValue:~".*8..." OR NewUacValue:~".*9..." OR
+      NewUacValue:~".*A..." OR NewUacValue:~".*B..." OR NewUacValue:~".*C..." OR NewUacValue:~".*D..."
+      OR NewUacValue:~".*E..." OR NewUacValue:~".*F...") AND NOT (OldUacValue:~".*8..."
+      OR OldUacValue:~".*9..." OR OldUacValue:~".*A..." OR OldUacValue:~".*B..." OR
+      OldUacValue:~".*C..." OR OldUacValue:~".*D..." OR OldUacValue:~".*E..." OR OldUacValue:~".*F...")
+      OR (NewUacValue:~".*1...." OR NewUacValue:~".*3...." OR NewUacValue:~".*5...."
+      OR NewUacValue:~".*7...." OR NewUacValue:~".*9...." OR NewUacValue:~".*B...."
+      OR NewUacValue:~".*D...." OR NewUacValue:~".*F....") AND NOT (OldUacValue:~".*1...."
+      OR OldUacValue:~".*3...." OR OldUacValue:~".*5...." OR OldUacValue:~".*7...."
+      OR OldUacValue:~".*9...." OR OldUacValue:~".*B...." OR OldUacValue:~".*D...."
+      OR OldUacValue:~".*F....") OR (NewUacValue:~".*8.." OR NewUacValue:~".*9.."
+      OR NewUacValue:~".*A.." OR NewUacValue:~".*B.." OR NewUacValue:~".*C.." OR NewUacValue:~".*D.."
+      OR NewUacValue:~".*E.." OR NewUacValue:~".*F..") AND NOT (OldUacValue:~".*8.."
+      OR OldUacValue:~".*9.." OR OldUacValue:~".*A.." OR OldUacValue:~".*B.." OR OldUacValue:~".*C.."
+      OR OldUacValue:~".*D.." OR OldUacValue:~".*E.." OR OldUacValue:~".*F..")) |
+      stats count() as matches | filter matches:>0
+    for: 0s
+    labels:
+      severity: high
+      sigma_id: f6de9536-0441-4b3f-a646-f4e00f300ffd
+    annotations:
+      summary: Weak Encryption Enabled and Kerberoast
+      description: Detects scenario where weak encryption is enabled for a user profile
+        which could be used for hash/password cracking.
+      author: '@neu5ron'
+      tags: attack.defense-impairment, attack.t1685
+      references: 'https://adsecurity.org/?p=2053
+
+        https://blog.harmj0y.net/redteaming/another-word-on-delegation/'
+  - alert: Hacktool_Ruler
+    expr: event.code:=4776 AND Workstation:="RULER" OR (event.code:in(4624, 4625))
+      AND WorkstationName:="RULER" | stats count() as matches | filter matches:>0
+    for: 0s
+    labels:
+      severity: high
+      sigma_id: 24549159-ac1b-479c-8175-d42aea947cae
+    annotations:
+      summary: Hacktool Ruler
+      description: This events that are generated when using the hacktool Ruler by
+        Sensepost
+      author: Florian Roth (Nextron Systems)
+      tags: attack.discovery, attack.execution, attack.collection, attack.lateral-movement,
+        attack.t1087, attack.t1114, attack.t1059, attack.t1550.002
+      references: 'https://github.com/sensepost/ruler
+
+        https://github.com/sensepost/ruler/issues/47
+
+        https://github.com/staaldraad/go-ntlm/blob/cd032d41aa8ce5751c07cb7945400c0f5c81e2eb/ntlm/ntlmv1.go#L427
+
+        https://learn.microsoft.com/en-us/previous-versions/windows/it-pro/windows-10/security/threat-protection/auditing/event-4776
+
+        https://learn.microsoft.com/en-us/previous-versions/windows/it-pro/windows-10/security/threat-protection/auditing/event-4624'
+  - alert: Remote_Task_Creation_via_ATSVC_Named_Pipe
+    expr: event.code:=5145 AND ShareName:="\\\\*\\IPC$" AND RelativeTargetName:="atsvc"
+      AND AccessList:"WriteData" | stats count() as matches | filter matches:>0
+    for: 0s
+    labels:
+      severity: medium
+      sigma_id: f6de6525-4509-495a-8a82-1f8b0ed73a00
+    annotations:
+      summary: Remote Task Creation via ATSVC Named Pipe
+      description: Detects remote task creation via at.exe or API interacting with
+        ATSVC namedpipe
+      author: Samir Bousseaden
+      tags: attack.privilege-escalation, attack.execution, attack.lateral-movement,
+        attack.persistence, car.2013-05-004, car.2015-04-001, attack.t1053.002
+      references: https://web.archive.org/web/20230409194125/https://blog.menasec.net/2019/03/threat-hunting-25-scheduled-tasks-for.html
+  - alert: Security_Eventlog_Cleared
+    expr: event.code:=517 AND Provider_Name:="Security" OR event.code:=1102 AND Provider_Name:="Microsoft-Windows-Eventlog"
+      | stats count() as matches | filter matches:>0
+    for: 0s
+    labels:
+      severity: high
+      sigma_id: d99b79d2-0a6f-4f46-ad8b-260b6e17f982
+    annotations:
+      summary: Security Eventlog Cleared
+      description: One of the Windows Eventlogs has been cleared. e.g. caused by "wevtutil
+        cl" command execution
+      author: Florian Roth (Nextron Systems)
+      tags: attack.defense-impairment, attack.t1685.005, car.2016-04-002
+      references: 'https://twitter.com/deviouspolack/status/832535435960209408
+
+        https://www.hybrid-analysis.com/sample/027cc450ef5f8c5f653329641ec1fed91f694e0d229928963b30f6b0d7d3a745?environmentId=100
+
+        https://github.com/Azure/Azure-Sentinel/blob/f99542b94afe0ad2f19a82cc08262e7ac8e1428e/Detections/SecurityEvent/SecurityEventLogCleared.yaml'
+  - alert: Processes_Accessing_the_Microphone_and_Webcam
+    expr: (event.code:in(4657, 4656, 4663)) AND (ObjectName:"\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\CapabilityAccessManager\\ConsentStore\\microphone\\NonPackaged"
+      OR ObjectName:"\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\CapabilityAccessManager\\ConsentStore\\webcam\\NonPackaged")
+      | stats count() as matches | filter matches:>0
+    for: 0s
+    labels:
+      severity: medium
+      sigma_id: 8cd538a4-62d5-4e83-810b-12d41e428d6e
+    annotations:
+      summary: Processes Accessing the Microphone and Webcam
+      description: Potential adversaries accessing the microphone and webcam in an
+        endpoint.
+      author: Roberto Rodriguez (Cyb3rWard0g), OTR (Open Threat Research)
+      tags: attack.collection, attack.t1123
+      references: 'https://twitter.com/duzvik/status/1269671601852813320
+
+        https://medium.com/@7a616368/can-you-track-processes-accessing-the-camera-and-microphone-7e6885b37072'
+  - alert: CobaltStrike_Service_Installations_Security
+    expr: event.code:=4697 AND (ServiceFileName:"ADMIN$" AND ServiceFileName:".exe"
+      OR ServiceFileName:"%COMSPEC%" AND ServiceFileName:"start" AND ServiceFileName:"powershell"
+      OR ServiceFileName:"powershell -nop -w hidden -encodedcommand" OR ServiceFileName:"SUVYIChOZXctT2JqZWN0IE5ldC5XZWJjbGllbnQpLkRvd25sb2FkU3RyaW5nKCdodHRwOi8vMTI3LjAuMC4xO"
+      OR ServiceFileName:"lFWCAoTmV3LU9iamVjdCBOZXQuV2ViY2xpZW50KS5Eb3dubG9hZFN0cmluZygnaHR0cDovLzEyNy4wLjAuMT"
+      OR ServiceFileName:"JRVggKE5ldy1PYmplY3QgTmV0LldlYmNsaWVudCkuRG93bmxvYWRTdHJpbmcoJ2h0dHA6Ly8xMjcuMC4wLjE6")
+      | stats count() as matches | filter matches:>0
+    for: 0s
+    labels:
+      severity: high
+      sigma_id: d7a95147-145f-4678-b85d-d1ff4a3bb3f6
+    annotations:
+      summary: CobaltStrike Service Installations - Security
+      description: Detects known malicious service installs that appear in cases in
+        which a Cobalt Strike beacon elevates privileges or lateral movement
+      author: Florian Roth (Nextron Systems), Wojciech Lesicki
+      tags: attack.persistence, attack.execution, attack.privilege-escalation, attack.lateral-movement,
+        attack.t1021.002, attack.t1543.003, attack.t1569.002
+      references: 'https://www.sans.org/webcasts/119395
+
+        https://www.crowdstrike.com/blog/getting-the-bacon-from-cobalt-strike-beacon/
+
+        https://thedfirreport.com/2021/08/29/cobalt-strike-a-defenders-guide/'
+  - alert: DCERPC_SMB_Spoolss_Named_Pipe
+    expr: event.code:=5145 AND ShareName:="\\\\*\\IPC$" AND RelativeTargetName:="spoolss"
+      | stats count() as matches | filter matches:>0
+    for: 0s
+    labels:
+      severity: medium
+      sigma_id: 214e8f95-100a-4e04-bb31-ef6cba8ce07e
+    annotations:
+      summary: DCERPC SMB Spoolss Named Pipe
+      description: Detects the use of the spoolss named pipe over SMB. This can be
+        used to trigger the authentication via NTLM of any machine that has the spoolservice
+        enabled.
+      author: OTR (Open Threat Research)
+      tags: attack.lateral-movement, attack.t1021.002
+      references: 'https://posts.specterops.io/hunting-in-active-directory-unconstrained-delegation-forests-trusts-71f2b33688e1
+
+        https://dirkjanm.io/a-different-way-of-abusing-zerologon/
+
+        https://twitter.com/_dirkjan/status/1309214379003588608'
+  - alert: DCOM_InternetExplorer_Application_Iertutil_DLL_Hijack_Security
+    expr: event.code:=5145 AND RelativeTargetName:~"\\\\Internet Explorer\\\\iertutil\\.dll$"
+      AND NOT user.name:~"\\$$" | stats count() as matches | filter matches:>0
+    for: 0s
+    labels:
+      severity: high
+      sigma_id: c39f0c81-7348-4965-ab27-2fde35a1b641
+    annotations:
+      summary: DCOM InternetExplorer.Application Iertutil DLL Hijack - Security
+      description: Detects a threat actor creating a file named `iertutil.dll` in
+        the `C:\Program Files\Internet Explorer\` directory over the network for a
+        DCOM InternetExplorer DLL Hijack scenario.
+      author: Roberto Rodriguez @Cyb3rWard0g, Open Threat Research (OTR)
+      tags: attack.lateral-movement, attack.t1021.002, attack.t1021.003
+      references: https://threathunterplaybook.com/hunts/windows/201009-RemoteDCOMIErtUtilDLLHijack/notebook.html
+  - alert: Mimikatz_DC_Sync
+    expr: event.code:=4662 AND (Properties:"Replicating Directory Changes All" OR
+      Properties:"1131f6ad-9c07-11d1-f79f-00c04fc2dcd2" OR Properties:"1131f6aa-9c07-11d1-f79f-00c04fc2dcd2"
+      OR Properties:"9923a32a-3607-11d2-b9be-0000f87a36b2" OR Properties:"89e95b76-444d-4c62-991a-0facbeda640c")
+      AND AccessMask:="0x100" AND NOT (SubjectDomainName:="Window Manager" OR user.name:="NT
+      AUT"* OR user.name:="MSOL_"* OR user.name:~"\\$$") | stats count() as matches
+      | filter matches:>0
+    for: 0s
+    labels:
+      severity: high
+      sigma_id: 611eab06-a145-4dfa-a295-3ccc5c20f59a
+    annotations:
+      summary: Mimikatz DC Sync
+      description: Detects Mimikatz DC sync security events
+      author: Benjamin Delpy, Florian Roth (Nextron Systems), Scott Dermott, Sorina
+        Ionescu
+      tags: attack.credential-access, attack.s0002, attack.t1003.006
+      references: 'https://twitter.com/gentilkiwi/status/1003236624925413376
+
+        https://gist.github.com/gentilkiwi/dcc132457408cf11ad2061340dcb53c2
+
+        https://blog.blacklanternsecurity.com/p/detecting-dcsync?s=r
+
+        https://learn.microsoft.com/en-us/previous-versions/windows/it-pro/windows-10/security/threat-protection/auditing/event-4662'
+  - alert: Windows_Default_Domain_GPO_Modification
+    expr: event.code:=5136 AND ObjectClass:="groupPolicyContainer" AND (ObjectDN:="CN={31B2F340-016D-11D2-945F-00C04FB984F9},CN=POLICIES,CN=SYSTEM"*
+      OR ObjectDN:="CN={6AC1786C-016F-11D2-945F-00C04FB984F9},CN=POLICIES,CN=SYSTEM"*)
+      | stats count() as matches | filter matches:>0
+    for: 0s
+    labels:
+      severity: medium
+      sigma_id: e5ac86dd-2da1-454b-be74-05d26c769d7d
+    annotations:
+      summary: Windows Default Domain GPO Modification
+      description: 'Detects modifications to Default Domain or Default Domain Controllers
+        Group Policy Objects (GPOs).
+
+        Adversaries may modify these default GPOs to deploy malicious configurations
+        across the domain.
+
+        '
+      author: Swachchhanda Shrawan Poudel (Nextron Systems)
+      tags: attack.privilege-escalation, attack.defense-impairment, attack.t1484.001
+      references: 'https://www.trendmicro.com/en_us/research/25/i/unmasking-the-gentlemen-ransomware.html
+
+        https://adsecurity.org/?p=3377
+
+        https://www.pentestpartners.com/security-blog/living-off-the-land-gpo-style/
+
+        https://jgspiers.com/audit-group-policy-changes/'
+  - alert: Device_Installation_Blocked
+    expr: event.code:=6423 | stats count() as matches | filter matches:>0
+    for: 0s
+    labels:
+      severity: medium
+      sigma_id: c9eb55c3-b468-40ab-9089-db2862e42137
+    annotations:
+      summary: Device Installation Blocked
+      description: Detects an installation of a device that is forbidden by the system
+        policy
+      author: frack113
+      tags: attack.initial-access, attack.t1200
+      references: 'https://github.com/Yamato-Security/EnableWindowsLogSettings/blob/7f6d755d45ac7cc9fc35b0cbf498e6aa4ef19def/ConfiguringSecurityLogAuditPolicies.md
+
+        https://learn.microsoft.com/en-us/previous-versions/windows/it-pro/windows-10/security/threat-protection/auditing/event-6423'
+  - alert: Important_Windows_Event_Auditing_Disabled
+    expr: event.code:=4719 AND (SubcategoryGuid:in("{0CCE9210-69AE-11D9-BED3-505054503030}",
+      "{0CCE9211-69AE-11D9-BED3-505054503030}", "{0CCE9212-69AE-11D9-BED3-505054503030}",
+      "{0CCE9215-69AE-11D9-BED3-505054503030}", "{0CCE921B-69AE-11D9-BED3-505054503030}",
+      "{0CCE922B-69AE-11D9-BED3-505054503030}", "{0CCE922F-69AE-11D9-BED3-505054503030}",
+      "{0CCE9230-69AE-11D9-BED3-505054503030}", "{0CCE9235-69AE-11D9-BED3-505054503030}",
+      "{0CCE9236-69AE-11D9-BED3-505054503030}", "{0CCE9237-69AE-11D9-BED3-505054503030}",
+      "{0CCE923F-69AE-11D9-BED3-505054503030}", "{0CCE9240-69AE-11D9-BED3-505054503030}",
+      "{0CCE9242-69AE-11D9-BED3-505054503030}")) AND (AuditPolicyChanges:"%%8448"
+      OR AuditPolicyChanges:"%%8450") OR event.code:=4719 AND SubcategoryGuid:="{0CCE9217-69AE-11D9-BED3-505054503030}"
+      AND AuditPolicyChanges:"%%8448" | stats count() as matches | filter matches:>0
+    for: 0s
+    labels:
+      severity: high
+      sigma_id: ab4561b1-6c7e-48a7-ad08-087cfb9ce8f1
+    annotations:
+      summary: Important Windows Event Auditing Disabled
+      description: Detects scenarios where system auditing for important events such
+        as "Process Creation" or "Logon" events is disabled.
+      author: Nasreddine Bencherchali (Nextron Systems)
+      tags: attack.defense-impairment, attack.t1685.001
+      references: 'https://docs.google.com/presentation/d/1dkrldTTlN3La-OjWtkWJBb4hVk6vfsSMBFBERs6R8zA/edit
+
+        https://github.com/SigmaHQ/sigma/blob/ad1bfd3d28aa0ccc9656240f845022518ef65a2e/documentation/logsource-guides/windows/service/security.md'
+  - alert: ETW_Logging_Disabled_In_NET_Processes_Registry
+    expr: event.code:=4657 AND ObjectName:~"\\\\SOFTWARE\\\\Microsoft\\\\\\.NETFramework$"
+      AND ObjectValueName:="ETWEnabled" AND NewValue:=0 OR event.code:=4657 AND ObjectName:"\\Environment"
+      AND (ObjectValueName:in("COMPlus_ETWEnabled", "COMPlus_ETWFlags")) AND NewValue:=0
+      | stats count() as matches | filter matches:>0
+    for: 0s
+    labels:
+      severity: high
+      sigma_id: a4c90ea1-2634-4ca0-adbb-35eae169b6fc
+    annotations:
+      summary: ETW Logging Disabled In .NET Processes - Registry
+      description: Potential adversaries stopping ETW providers recording loaded .NET
+        assemblies.
+      author: Roberto Rodriguez (Cyb3rWard0g), OTR (Open Threat Research)
+      tags: attack.persistence, attack.defense-impairment, attack.t1112, attack.t1685
+      references: 'https://twitter.com/_xpn_/status/1268712093928378368
+
+        https://social.msdn.microsoft.com/Forums/vstudio/en-US/0878832e-39d7-4eaf-8e16-a729c4c40975/what-can-i-use-e13c0d23ccbc4e12931bd9cc2eee27e4-for?forum=clr
+
+        https://github.com/dotnet/runtime/blob/ee2355c801d892f2894b0f7b14a20e6cc50e0e54/docs/design/coreclr/jit/viewing-jit-dumps.md#setting-configuration-variables
+
+        https://github.com/dotnet/runtime/blob/f62e93416a1799aecc6b0947adad55a0d9870732/src/coreclr/src/inc/clrconfigvalues.h#L35-L38
+
+        https://github.com/dotnet/runtime/blob/7abe42dc1123722ed385218268bb9fe04556e3d3/src/coreclr/src/inc/clrconfig.h#L33-L39
+
+        https://github.com/dotnet/runtime/search?p=1&q=COMPlus_&unscoped_q=COMPlus_
+
+        https://bunnyinside.com/?term=f71e8cb9c76a
+
+        http://managed670.rssing.com/chan-5590147/all_p1.html
+
+        https://github.com/dotnet/runtime/blob/4f9ae42d861fcb4be2fcd5d3d55d5f227d30e723/docs/coding-guidelines/clr-jit-coding-conventions.md#1412-disabling-code
+
+        https://i.blackhat.com/EU-21/Wednesday/EU-21-Teodorescu-Veni-No-Vidi-No-Vici-Attacks-On-ETW-Blind-EDRs.pdf'
+  - alert: DPAPI_Domain_Backup_Key_Extraction
+    expr: event.code:=4662 AND ObjectType:="SecretObject" AND AccessMask:="0x2" AND
+      ObjectName:"BCKUPKEY" | stats count() as matches | filter matches:>0
+    for: 0s
+    labels:
+      severity: high
+      sigma_id: 4ac1f50b-3bd0-4968-902d-868b4647937e
+    annotations:
+      summary: DPAPI Domain Backup Key Extraction
+      description: Detects tools extracting LSA secret DPAPI domain backup key from
+        Domain Controllers
+      author: Roberto Rodriguez @Cyb3rWard0g
+      tags: attack.credential-access, attack.t1003.004
+      references: https://threathunterplaybook.com/hunts/windows/190620-DomainDPAPIBackupKeyExtraction/notebook.html
+  - alert: DPAPI_Domain_Master_Key_Backup_Attempt
+    expr: event.code:=4692 | stats count() as matches | filter matches:>0
+    for: 0s
+    labels:
+      severity: medium
+      sigma_id: 39a94fd1-8c9a-4ff6-bf22-c058762f8014
+    annotations:
+      summary: DPAPI Domain Master Key Backup Attempt
+      description: Detects anyone attempting a backup for the DPAPI Master Key. This
+        events gets generated at the source and not the Domain Controller.
+      author: Roberto Rodriguez @Cyb3rWard0g
+      tags: attack.credential-access, attack.t1003.004
+      references: https://threathunterplaybook.com/hunts/windows/190620-DomainDPAPIBackupKeyExtraction/notebook.html
+  - alert: Persistence_and_Execution_at_Scale_via_GPO_Scheduled_Task
+    expr: event.code:=5136 AND (AttributeLDAPDisplayName:in("gPCMachineExtensionNames",
+      "gPCUserExtensionNames")) AND (AttributeValue:"CAB54552-DEEA-4691-817E-ED4A4D1AFC72"
+      OR AttributeValue:"AADCED64-746C-4633-A97C-D61349046527") OR event.code:=5145
+      AND ShareName:~"\\\\SYSVOL$" AND RelativeTargetName:~"ScheduledTasks\\.xml$"
+      AND (AccessList:"WriteData" OR AccessList:"%%4417") | stats count() as matches
+      | filter matches:>0
+    for: 0s
+    labels:
+      severity: high
+      sigma_id: a8f29a7b-b137-4446-80a0-b804272f3da2
+    annotations:
+      summary: Persistence and Execution at Scale via GPO Scheduled Task
+      description: Detect lateral movement using GPO scheduled task, usually used
+        to deploy ransomware at scale
+      author: Samir Bousseaden
+      tags: attack.privilege-escalation, attack.execution, attack.persistence, attack.lateral-movement,
+        attack.t1053.005
+      references: 'https://twitter.com/menasec1/status/1106899890377052160
+
+        https://www.secureworks.com/blog/ransomware-as-a-distraction
+
+        https://www.elastic.co/guide/en/security/7.17/prebuilt-rule-0-16-1-scheduled-task-execution-at-scale-via-gpo.html'
+  - alert: Hidden_Local_User_Creation
+    expr: event.code:=4720 AND user.target.name:~"\\$$" AND NOT user.target.name:="HomeGroupUser$"
+      | stats count() as matches | filter matches:>0
+    for: 0s
+    labels:
+      severity: high
+      sigma_id: 7b449a5e-1db5-4dd0-a2dc-4e3a67282538
+    annotations:
+      summary: Hidden Local User Creation
+      description: Detects the creation of a local hidden user account which should
+        not happen for event ID 4720.
+      author: Christian Burkard (Nextron Systems)
+      tags: attack.persistence, attack.t1136.001
+      references: https://twitter.com/SBousseaden/status/1387743867663958021
+  - alert: HackTool_EDRSilencer_Execution_Filter_Added
+    expr: (event.code:in(5441, 5447)) AND FilterName:"Custom Outbound Filter" | stats
+      count() as matches | filter matches:>0
+    for: 0s
+    labels:
+      severity: high
+      sigma_id: 98054878-5eab-434c-85d4-72d4e5a3361b
+    annotations:
+      summary: HackTool - EDRSilencer Execution - Filter Added
+      description: 'Detects execution of EDRSilencer, a tool that abuses the Windows
+        Filtering Platform (WFP) to block the outbound traffic of running EDR agents
+        based on specific hardcoded filter names.
+
+        '
+      author: Thodoris Polyzos (@SmoothDeploy)
+      tags: attack.defense-impairment, attack.t1685
+      references: https://github.com/netero1010/EDRSilencer
+  - alert: HackTool_NoFilter_Execution
+    expr: event.code:=5447 AND FilterName:"RonPolicy" OR event.code:=5449 AND ProviderContextName:"RonPolicy"
+      | stats count() as matches | filter matches:>0
+    for: 0s
+    labels:
+      severity: high
+      sigma_id: 7b14c76a-c602-4ae6-9717-eff868153fc0
+    annotations:
+      summary: HackTool - NoFilter Execution
+      description: 'Detects execution of NoFilter, a tool for abusing the Windows
+        Filtering Platform for privilege escalation via hardcoded policy name indicators
+
+        '
+      author: Stamatis Chatzimangou (st0pp3r)
+      tags: attack.privilege-escalation, attack.stealth, attack.t1134, attack.t1134.001
+      references: 'https://github.com/deepinstinct/NoFilter/blob/121d215ab130c5e8e3ad45a7e7fcd56f4de97b4d/NoFilter/Consts.cpp
+
+        https://github.com/deepinstinct/NoFilter
+
+        https://www.deepinstinct.com/blog/nofilter-abusing-windows-filtering-platform-for-privilege-escalation
+
+        https://x.com/_st0pp3r_/status/1742203752361128162?s=20'
+  - alert: HybridConnectionManager_Service_Installation
+    expr: event.code:=4697 AND ServiceName:="HybridConnectionManager" AND ServiceFileName:"HybridConnectionManager"
+      | stats count() as matches | filter matches:>0
+    for: 0s
+    labels:
+      severity: high
+      sigma_id: 0ee4d8a5-4e67-4faf-acfa-62a78457d1f2
+    annotations:
+      summary: HybridConnectionManager Service Installation
+      description: Rule to detect the Hybrid Connection Manager service installation.
+      author: Roberto Rodriguez (Cyb3rWard0g), OTR (Open Threat Research)
+      tags: attack.persistence, attack.t1554
+      references: https://twitter.com/Cyb3rWard0g/status/1381642789369286662
+  - alert: Impacket_PsExec_Execution
+    expr: event.code:=5145 AND ShareName:="\\\\*\\IPC$" AND (RelativeTargetName:"RemCom_stdin"
+      OR RelativeTargetName:"RemCom_stdout" OR RelativeTargetName:"RemCom_stderr")
+      | stats count() as matches | filter matches:>0
+    for: 0s
+    labels:
+      severity: high
+      sigma_id: 32d56ea1-417f-44ff-822b-882873f5f43b
+    annotations:
+      summary: Impacket PsExec Execution
+      description: Detects execution of Impacket's psexec.py.
+      author: Bhabesh Raj
+      tags: attack.lateral-movement, attack.t1021.002
+      references: https://web.archive.org/web/20230329171218/https://blog.menasec.net/2019/02/threat-hunting-3-detecting-psexec.html
+  - alert: Possible_Impacket_SecretDump_Remote_Activity
+    expr: event.code:=5145 AND ShareName:="\\\\*\\ADMIN$" AND RelativeTargetName:"SYSTEM32\\"
+      AND RelativeTargetName:".tmp" | stats count() as matches | filter matches:>0
+    for: 0s
+    labels:
+      severity: high
+      sigma_id: 252902e3-5830-4cf6-bf21-c22083dfd5cf
+    annotations:
+      summary: Possible Impacket SecretDump Remote Activity
+      description: Detect AD credential dumping using impacket secretdump HKTL
+      author: Samir Bousseaden, wagga
+      tags: attack.credential-access, attack.t1003.002, attack.t1003.004, attack.t1003.003
+      references: https://web.archive.org/web/20230329153811/https://blog.menasec.net/2019/02/threat-huting-10-impacketsecretdump.html
+  - alert: Invoke_Obfuscation_CLIP_Launcher_Security
+    expr: event.code:=4697 AND ServiceFileName:"cmd" AND ServiceFileName:"&&" AND
+      ServiceFileName:"clipboard]::" | stats count() as matches | filter matches:>0
+    for: 0s
+    labels:
+      severity: high
+      sigma_id: 4edf51e1-cb83-4e1a-bc39-800e396068e3
+    annotations:
+      summary: Invoke-Obfuscation CLIP+ Launcher - Security
+      description: Detects Obfuscated use of Clip.exe to execute PowerShell
+      author: Jonathan Cheong, oscd.community
+      tags: attack.stealth, attack.t1027, attack.execution, attack.t1059.001
+      references: https://github.com/SigmaHQ/sigma/issues/1009
+  - alert: Invoke_Obfuscation_Obfuscated_IEX_Invocation_Security
+    expr: event.code:=4697 AND (ServiceFileName:~"\\$PSHome\\[\\s*\\d{1,3}\\s*\\]\\s*\\+\\s*\\$PSHome\\["
+      OR ServiceFileName:~"\\$ShellId\\[\\s*\\d{1,3}\\s*\\]\\s*\\+\\s*\\$ShellId\\["
+      OR ServiceFileName:~"\\$env:Public\\[\\s*\\d{1,3}\\s*\\]\\s*\\+\\s*\\$env:Public\\["
+      OR ServiceFileName:~"\\$env:ComSpec\\[(\\s*\\d{1,3}\\s*,){2}" OR ServiceFileName:~"\\\\*mdr\\*\\W\\s*\\)\\.Name"
+      OR ServiceFileName:~"\\$VerbosePreference\\.ToString\\(" OR ServiceFileName:~"\\String\\]\\s*\\$VerbosePreference")
+      | stats count() as matches | filter matches:>0
+    for: 0s
+    labels:
+      severity: high
+      sigma_id: fd0f5778-d3cb-4c9a-9695-66759d04702a
+    annotations:
+      summary: Invoke-Obfuscation Obfuscated IEX Invocation - Security
+      description: Detects all variations of obfuscated powershell IEX invocation
+        code generated by Invoke-Obfuscation framework from the code block linked
+        in the references
+      author: Daniel Bohannon (@Mandiant/@FireEye), oscd.community
+      tags: attack.stealth, attack.t1027
+      references: https://github.com/danielbohannon/Invoke-Obfuscation/blob/f20e7f843edd0a3a7716736e9eddfa423395dd26/Out-ObfuscatedStringCommand.ps1#L873-L888
+  - alert: Invoke_Obfuscation_STDIN_Launcher_Security
+    expr: event.code:=4697 AND ServiceFileName:"cmd" AND ServiceFileName:"powershell"
+      AND (ServiceFileName:"${input}" OR ServiceFileName:"noexit") AND (ServiceFileName:"
+      /c " OR ServiceFileName:" /r ") | stats count() as matches | filter matches:>0
+    for: 0s
+    labels:
+      severity: high
+      sigma_id: 0c718a5e-4284-4fb9-b4d9-b9a50b3a1974
+    annotations:
+      summary: Invoke-Obfuscation STDIN+ Launcher - Security
+      description: Detects Obfuscated use of stdin to execute PowerShell
+      author: Jonathan Cheong, oscd.community
+      tags: attack.stealth, attack.t1027, attack.execution, attack.t1059.001
+      references: https://github.com/SigmaHQ/sigma/issues/1009
+  - alert: Invoke_Obfuscation_VAR_Launcher_Security
+    expr: event.code:=4697 AND ServiceFileName:"cmd" AND ServiceFileName:"\"set" AND
+      ServiceFileName:"-f" AND (ServiceFileName:"/c" OR ServiceFileName:"/r") | stats
+      count() as matches | filter matches:>0
+    for: 0s
+    labels:
+      severity: high
+      sigma_id: dcf2db1f-f091-425b-a821-c05875b8925a
+    annotations:
+      summary: Invoke-Obfuscation VAR+ Launcher - Security
+      description: Detects Obfuscated use of Environment Variables to execute PowerShell
+      author: Jonathan Cheong, oscd.community
+      tags: attack.stealth, attack.t1027, attack.execution, attack.t1059.001
+      references: https://github.com/SigmaHQ/sigma/issues/1009
+  - alert: Invoke_Obfuscation_COMPRESS_OBFUSCATION_Security
+    expr: event.code:=4697 AND ServiceFileName:"new-object" AND ServiceFileName:"text.encoding]::ascii"
+      AND ServiceFileName:"readtoend" AND (ServiceFileName:"system.io.compression.deflatestream"
+      OR ServiceFileName:"system.io.streamreader") | stats count() as matches | filter
+      matches:>0
+    for: 0s
+    labels:
+      severity: medium
+      sigma_id: 7a922f1b-2635-4d6c-91ef-af228b198ad3
+    annotations:
+      summary: Invoke-Obfuscation COMPRESS OBFUSCATION - Security
+      description: Detects Obfuscated Powershell via COMPRESS OBFUSCATION
+      author: Timur Zinniatullin, oscd.community
+      tags: attack.stealth, attack.t1027, attack.execution, attack.t1059.001
+      references: https://github.com/SigmaHQ/sigma/issues/1009
+  - alert: Invoke_Obfuscation_RUNDLL_LAUNCHER_Security
+    expr: event.code:=4697 AND ServiceFileName:"rundll32.exe" AND ServiceFileName:"shell32.dll"
+      AND ServiceFileName:"shellexec_rundll" AND ServiceFileName:"powershell" | stats
+      count() as matches | filter matches:>0
+    for: 0s
+    labels:
+      severity: medium
+      sigma_id: f241cf1b-3a6b-4e1a-b4f9-133c00dd95ca
+    annotations:
+      summary: Invoke-Obfuscation RUNDLL LAUNCHER - Security
+      description: Detects Obfuscated Powershell via RUNDLL LAUNCHER
+      author: Timur Zinniatullin, oscd.community
+      tags: attack.stealth, attack.t1027, attack.execution, attack.t1059.001
+      references: https://github.com/SigmaHQ/sigma/issues/1009
+  - alert: Invoke_Obfuscation_Via_Stdin_Security
+    expr: event.code:=4697 AND ServiceFileName:"set" AND ServiceFileName:"&&" AND
+      (ServiceFileName:"environment" OR ServiceFileName:"invoke" OR ServiceFileName:"${input)")
+      | stats count() as matches | filter matches:>0
+    for: 0s
+    labels:
+      severity: high
+      sigma_id: 80b708f3-d034-40e4-a6c8-d23b7a7db3d1
+    annotations:
+      summary: Invoke-Obfuscation Via Stdin - Security
+      description: Detects Obfuscated Powershell via Stdin in Scripts
+      author: Nikita Nazarov, oscd.community
+      tags: attack.stealth, attack.t1027, attack.execution, attack.t1059.001
+      references: https://github.com/SigmaHQ/sigma/issues/1009
+  - alert: Invoke_Obfuscation_Via_Use_Clip_Security
+    expr: event.code:=4697 AND ServiceFileName:"(Clipboard|i" | stats count() as matches
+      | filter matches:>0
+    for: 0s
+    labels:
+      severity: high
+      sigma_id: 1a0a2ff1-611b-4dac-8216-8a7b47c618a6
+    annotations:
+      summary: Invoke-Obfuscation Via Use Clip - Security
+      description: Detects Obfuscated Powershell via use Clip.exe in Scripts
+      author: Nikita Nazarov, oscd.community
+      tags: attack.stealth, attack.t1027, attack.execution, attack.t1059.001
+      references: https://github.com/SigmaHQ/sigma/issues/1009
+  - alert: Invoke_Obfuscation_Via_Use_MSHTA_Security
+    expr: event.code:=4697 AND ServiceFileName:"mshta" AND ServiceFileName:"vbscript:createobject"
+      AND ServiceFileName:".run" AND ServiceFileName:"window.close" | stats count()
+      as matches | filter matches:>0
+    for: 0s
+    labels:
+      severity: high
+      sigma_id: 9b8d9203-4e0f-4cd9-bb06-4cc4ea6d0e9a
+    annotations:
+      summary: Invoke-Obfuscation Via Use MSHTA - Security
+      description: Detects Obfuscated Powershell via use MSHTA in Scripts
+      author: Nikita Nazarov, oscd.community
+      tags: attack.stealth, attack.t1027, attack.execution, attack.t1059.001
+      references: https://github.com/SigmaHQ/sigma/issues/1009
+  - alert: Invoke_Obfuscation_Via_Use_Rundll32_Security
+    expr: event.code:=4697 AND ServiceFileName:"&&" AND ServiceFileName:"rundll32"
+      AND ServiceFileName:"shell32.dll" AND ServiceFileName:"shellexec_rundll" AND
+      (ServiceFileName:"value" OR ServiceFileName:"invoke" OR ServiceFileName:"comspec"
+      OR ServiceFileName:"iex") | stats count() as matches | filter matches:>0
+    for: 0s
+    labels:
+      severity: high
+      sigma_id: cd0f7229-d16f-42de-8fe3-fba365fbcb3a
+    annotations:
+      summary: Invoke-Obfuscation Via Use Rundll32 - Security
+      description: Detects Obfuscated Powershell via use Rundll32 in Scripts
+      author: Nikita Nazarov, oscd.community
+      tags: attack.stealth, attack.t1027, attack.execution, attack.t1059.001
+      references: https://github.com/SigmaHQ/sigma/issues/1009
+  - alert: Invoke_Obfuscation_VAR_LAUNCHER_OBFUSCATION_Security
+    expr: event.code:=4697 AND ServiceFileName:"&&set" AND ServiceFileName:"cmd" AND
+      ServiceFileName:"/c" AND ServiceFileName:"-f" AND (ServiceFileName:"{0}" OR
+      ServiceFileName:"{1}" OR ServiceFileName:"{2}" OR ServiceFileName:"{3}" OR ServiceFileName:"{4}"
+      OR ServiceFileName:"{5}") | stats count() as matches | filter matches:>0
+    for: 0s
+    labels:
+      severity: high
+      sigma_id: 4c54ba8f-73d2-4d40-8890-d9cf1dca3d30
+    annotations:
+      summary: Invoke-Obfuscation VAR++ LAUNCHER OBFUSCATION - Security
+      description: Detects Obfuscated Powershell via VAR++ LAUNCHER
+      author: Timur Zinniatullin, oscd.community
+      tags: attack.stealth, attack.t1027, attack.execution, attack.t1059.001
+      references: https://github.com/SigmaHQ/sigma/issues/1009
+  - alert: ISO_Image_Mounted
+    expr: event.code:=4663 AND ObjectServer:="Security" AND ObjectType:="File" AND
+      ObjectName:="\\Device\\CdRom"* AND NOT (ObjectName:in("\\Device\\CdRom0\\autorun.ico",
+      "\\Device\\CdRom0\\setup.exe", "\\Device\\CdRom0\\setup64.exe")) | stats count()
+      as matches | filter matches:>0
+    for: 0s
+    labels:
+      severity: medium
+      sigma_id: 0248a7bc-8a9a-4cd8-a57e-3ae8e073a073
+    annotations:
+      summary: ISO Image Mounted
+      description: Detects the mount of an ISO image on an endpoint
+      author: Syed Hasan (@syedhasan009)
+      tags: attack.initial-access, attack.t1566.001
+      references: 'https://www.trendmicro.com/vinfo/hk-en/security/news/cybercrime-and-digital-threats/malicious-spam-campaign-uses-iso-image-files-to-deliver-lokibot-and-nanocore
+
+        https://www.proofpoint.com/us/blog/threat-insight/threat-actor-profile-ta2719-uses-colorful-lures-deliver-rats-local-languages
+
+        https://twitter.com/MsftSecIntel/status/1257324139515269121
+
+        https://github.com/redcanaryco/atomic-red-team/blob/0f229c0e42bfe7ca736a14023836d65baa941ed2/atomics/T1553.005/T1553.005.md#atomic-test-1---mount-iso-image'
+  - alert: Kerberoasting_Activity_Initial_Query
+    expr: event.code:=4769 AND Status:="0x0" AND TicketEncryptionType:="0x17" AND
+      NOT (ServiceName:~"krbtgt$" OR ServiceName:~"\\$$" OR user.target.name:"$@")
+      | stats count() as matches | filter matches:>0
+    for: 0s
+    labels:
+      severity: medium
+      sigma_id: d04ae2b8-ad54-4de0-bd87-4bc1da66aa59
+    annotations:
+      summary: Kerberoasting Activity - Initial Query
+      description: 'This rule will collect the data needed to start looking into possible
+        kerberoasting activity.
+
+        Further analysis or computation within the query is needed focusing on requests
+        from one specific host/IP towards multiple service names within a time period
+        of 5 seconds.
+
+        You can then set a threshold for the number of requests and time between the
+        requests to turn this into an alert.
+
+        '
+      author: '@kostastsale'
+      tags: attack.credential-access, attack.t1558.003
+      references: 'https://www.trustedsec.com/blog/art_of_kerberoast/
+
+        https://adsecurity.org/?p=3513'
+  - alert: Potential_AS_REP_Roasting_via_Kerberos_TGT_Requests
+    expr: event.code:=4768 AND TicketEncryptionType:="0x17" AND ServiceName:="krbtgt"
+      AND PreAuthType:=0 | stats count() as matches | filter matches:>0
+    for: 0s
+    labels:
+      severity: medium
+      sigma_id: 3e2f1b2c-4d5e-11ee-be56-0242ac120002
+    annotations:
+      summary: Potential AS-REP Roasting via Kerberos TGT Requests
+      description: 'Detects suspicious Kerberos TGT requests with pre-authentication
+        disabled (Pre-Authentication Type = 0) and Ticket Encryption Type (0x17) i.e,
+        RC4-HMAC.
+
+        This may indicate an AS-REP Roasting attack, where attackers request AS-REP
+        messages for accounts without pre-authentication and attempt to crack the
+        encrypted ticket offline to recover user passwords.
+
+        '
+      author: ANosir
+      references: 'https://medium.com/system-weakness/detecting-as-rep-roasting-attacks-b5b3965f9714
+
+        https://www.picussecurity.com/resource/blog/as-rep-roasting-attack-explained-mitre-attack-t1558.004'
+  - alert: Potential_Kerberos_Coercion_by_Spoofing_SPNs_via_DNS_Manipulation
+    expr: (event.code:in(5136, 5137)) AND ObjectClass:="dnsNode" AND ObjectDN:"UWhRCA"
+      AND ObjectDN:"BAAAA" AND ObjectDN:"CN=MicrosoftDNS" OR event.code:=4662 AND
+      AdditionalInfo:"UWhRCA" AND AdditionalInfo:"BAAAA" AND AdditionalInfo:"CN=MicrosoftDNS"
+      | stats count() as matches | filter matches:>0
+    for: 0s
+    labels:
+      severity: high
+      sigma_id: b07e58cf-cacc-4135-8473-ccb2eba63dd2
+    annotations:
+      summary: Potential Kerberos Coercion by Spoofing SPNs via DNS Manipulation
+      description: 'Detects modifications to DNS records in Active Directory where
+        the Distinguished Name (DN) contains a base64-encoded blob
+
+        matching the pattern "1UWhRCAAAAA...BAAAA". This pattern corresponds to a
+        marshaled CREDENTIAL_TARGET_INFORMATION structure,
+
+        commonly used in Kerberos coercion attacks. Adversaries may exploit this to
+        coerce victim systems into authenticating to
+
+        attacker-controlled hosts by spoofing SPNs via DNS. It is one of the strong
+        indicators of a Kerberos coercion attack,.
+
+        where adversaries manipulate DNS records to spoof Service Principal Names
+        (SPNs) and redirect authentication requests like CVE-2025-33073.
+
+        Please investigate the user account that made the changes, as it is likely
+        a low-privileged account that has been compromised.
+
+        '
+      author: Swachchhanda Shrawan Poudel (Nextron Systems)
+      tags: attack.collection, attack.credential-access, attack.t1557.003, attack.persistence,
+        attack.privilege-escalation
+      references: 'https://googleprojectzero.blogspot.com/2021/10/using-kerberos-for-authentication-relay.html
+
+        https://www.synacktiv.com/publications/ntlm-reflection-is-dead-long-live-ntlm-reflection-an-in-depth-analysis-of-cve-2025'
+  - alert: First_Time_Seen_Remote_Named_Pipe
+    expr: event.code:=5145 AND ShareName:="\\\\*\\IPC$" AND NOT (RelativeTargetName:in("atsvc",
+      "samr", "lsarpc", "lsass", "winreg", "netlogon", "srvsvc", "protected_storage",
+      "wkssvc", "browser", "netdfs", "svcctl", "spoolss", "ntsvcs", "LSM_API_service",
+      "HydraLsPipe", "TermSrv_API_service", "MsFteWds", "sql\\query", "eventlog"))
+      | stats count() as matches | filter matches:>0
+    for: 0s
+    labels:
+      severity: high
+      sigma_id: 52d8b0c6-53d6-439a-9e41-52ad442ad9ad
+    annotations:
+      summary: First Time Seen Remote Named Pipe
+      description: This detection excludes known namped pipes accessible remotely
+        and notify on newly observed ones, may help to detect lateral movement and
+        remote exec using named pipes
+      author: Samir Bousseaden
+      tags: attack.lateral-movement, attack.t1021.002
+      references: https://twitter.com/menasec1/status/1104489274387451904
+  - alert: LSASS_Access_From_Non_System_Account
+    expr: (event.code:in(4663, 4656)) AND (AccessMask:in("0x100000", "0x1010", "0x1400",
+      "0x1410", "0x1418", "0x1438", "0x143a", "0x1f0fff", "0x1f1fff", "0x1f2fff",
+      "0x1f3fff", "0x40", "143a", "1f0fff", "1f1fff", "1f2fff", "1f3fff")) AND ObjectType:="Process"
+      AND ObjectName:~"\\\\lsass\\.exe$" AND NOT (user.name:~"\\$$" OR ProcessName:":\\Program
+      Files\\" OR ProcessName:":\\Program Files (x86)\\" OR ProcessName:="C:\\Windows\\System32\\wbem\\WmiPrvSE.exe"
+      AND AccessMask:="0x1410") AND NOT ProcessName:"\\SteamLibrary\\steamapps\\"
+      | stats count() as matches | filter matches:>0
+    for: 0s
+    labels:
+      severity: medium
+      sigma_id: 962fe167-e48d-4fd6-9974-11e5b9a5d6d1
+    annotations:
+      summary: LSASS Access From Non System Account
+      description: Detects potential mimikatz-like tools accessing LSASS from non
+        system account
+      author: Roberto Rodriguez @Cyb3rWard0g
+      tags: attack.credential-access, attack.t1003.001
+      references: https://threathunterplaybook.com/hunts/windows/170105-LSASSMemoryReadAccess/notebook.html
+  - alert: Credential_Dumping_Tools_Service_Execution_Security
+    expr: event.code:=4697 AND (ServiceFileName:"cachedump" OR ServiceFileName:"dumpsvc"
+      OR ServiceFileName:"fgexec" OR ServiceFileName:"gsecdump" OR ServiceFileName:"mimidrv"
+      OR ServiceFileName:"pwdump" OR ServiceFileName:"servpw") | stats count() as
+      matches | filter matches:>0
+    for: 0s
+    labels:
+      severity: high
+      sigma_id: f0d1feba-4344-4ca9-8121-a6c97bd6df52
+    annotations:
+      summary: Credential Dumping Tools Service Execution - Security
+      description: Detects well-known credential dumping tools execution via service
+        execution events
+      author: Florian Roth (Nextron Systems), Teymur Kheirkhabarov, Daniil Yugoslavskiy,
+        oscd.community
+      tags: attack.credential-access, attack.execution, attack.t1003.001, attack.t1003.002,
+        attack.t1003.004, attack.t1003.005, attack.t1003.006, attack.t1569.002, attack.s0005
+      references: https://www.slideshare.net/heirhabarov/hunting-for-credentials-dumping-in-windows-environment
+  - alert: WCE_wceaux_dll_Access
+    expr: (event.code:in(4656, 4663)) AND ObjectName:~"\\\\wceaux\\.dll$" | stats
+      count() as matches | filter matches:>0
+    for: 0s
+    labels:
+      severity: critical
+      sigma_id: 1de68c67-af5c-4097-9c85-fe5578e09e67
+    annotations:
+      summary: WCE wceaux.dll Access
+      description: Detects wceaux.dll access while WCE pass-the-hash remote command
+        execution on source host
+      author: Thomas Patzke
+      tags: attack.credential-access, attack.t1003, attack.s0005
+      references: 'https://www.jpcert.or.jp/english/pub/sr/ir_research.html
+
+        https://jpcertcc.github.io/ToolAnalysisResultSheet'
+  - alert: Metasploit_SMB_Authentication
+    expr: (event.code:in(4625, 4624)) AND winlog.logon.type:=3 AND AuthenticationPackageName:="NTLM"
+      AND WorkstationName:~"^[A-Za-z0-9]{16}$" OR event.code:=4776 AND Workstation:~"^[A-Za-z0-9]{16}$"
+      | stats count() as matches | filter matches:>0
+    for: 0s
+    labels:
+      severity: high
+      sigma_id: 72124974-a68b-4366-b990-d30e0b2a190d
+    annotations:
+      summary: Metasploit SMB Authentication
+      description: Alerts on Metasploit host's authentications on the domain.
+      author: Chakib Gzenayi (@Chak092), Hosni Mribah
+      tags: attack.lateral-movement, attack.t1021.002
+      references: https://github.com/rapid7/metasploit-framework/blob/1416b5776d963f21b7b5b45d19f3e961201e0aed/lib/rex/proto/smb/client.rb
+  - alert: Metasploit_Or_Impacket_Service_Installation_Via_SMB_PsExec
+    expr: event.code:=4697 AND ServiceFileName:~"^%systemroot%\\\\[a-zA-Z]{8}\\.exe$"
+      AND ServiceName:~"(^[a-zA-Z]{4}$)|(^[a-zA-Z]{8}$)|(^[a-zA-Z]{16}$)" AND ServiceStartType:=3
+      AND ServiceType:="0x10" AND NOT ServiceName:="PSEXESVC" | stats count() as matches
+      | filter matches:>0
+    for: 0s
+    labels:
+      severity: high
+      sigma_id: 6fb63b40-e02a-403e-9ffd-3bcc1d749442
+    annotations:
+      summary: Metasploit Or Impacket Service Installation Via SMB PsExec
+      description: Detects usage of Metasploit SMB PsExec (exploit/windows/smb/psexec)
+        and Impacket psexec.py by triggering on specific service installation
+      author: Bartlomiej Czyz, Relativity
+      tags: attack.lateral-movement, attack.t1021.002, attack.t1570, attack.execution,
+        attack.t1569.002
+      references: https://bczyz1.github.io/2021/01/30/psexec.html
+  - alert: Meterpreter_or_Cobalt_Strike_Getsystem_Service_Installation_Security
+    expr: event.code:=4697 AND (ServiceFileName:"/c" AND ServiceFileName:"echo" AND
+      ServiceFileName:"\\pipe\\" AND (ServiceFileName:"cmd" OR ServiceFileName:"%COMSPEC%")
+      OR ServiceFileName:"rundll32" AND ServiceFileName:".dll,a" AND ServiceFileName:"/p:"
+      OR ServiceFileName:="\\\\127.0.0.1\\ADMIN$\\"*) | stats count() as matches |
+      filter matches:>0
+    for: 0s
+    labels:
+      severity: high
+      sigma_id: ecbc5e16-58e0-4521-9c60-eb9a7ea4ad34
+    annotations:
+      summary: Meterpreter or Cobalt Strike Getsystem Service Installation - Security
+      description: Detects the use of getsystem Meterpreter/Cobalt Strike command
+        by detecting a specific service installation
+      author: Teymur Kheirkhabarov, Ecco, Florian Roth (Nextron Systems)
+      tags: attack.privilege-escalation, attack.stealth, attack.t1134.001, attack.t1134.002
+      references: 'https://speakerdeck.com/heirhabarov/hunting-for-privilege-escalation-in-windows-environment
+
+        https://blog.cobaltstrike.com/2014/04/02/what-happens-when-i-type-getsystem/'
+  - alert: NetNTLM_Downgrade_Attack
+    expr: event.code:=4657 AND ObjectName:"\\REGISTRY\\MACHINE\\SYSTEM" AND ObjectName:"ControlSet"
+      AND ObjectName:"\\Control\\Lsa" AND (ObjectValueName:in("LmCompatibilityLevel",
+      "NtlmMinClientSec", "RestrictSendingNTLMTraffic")) | stats count() as matches
+      | filter matches:>0
+    for: 0s
+    labels:
+      severity: high
+      sigma_id: d3abac66-f11c-4ed0-8acb-50cc29c97eed
+    annotations:
+      summary: NetNTLM Downgrade Attack
+      description: Detects NetNTLM downgrade attack
+      author: Florian Roth (Nextron Systems), wagga
+      tags: attack.persistence, attack.defense-impairment, attack.t1685, attack.t1112
+      references: https://www.optiv.com/blog/post-exploitation-using-netntlm-downgrade-attacks
+  - alert: Windows_Network_Access_Suspicious_desktop_ini_Action
+    expr: event.code:=5145 AND ObjectType:="File" AND RelativeTargetName:~"\\\\desktop\\.ini$"
+      AND (AccessList:"WriteData" OR AccessList:"DELETE" OR AccessList:"WriteDAC"
+      OR AccessList:"AppendData" OR AccessList:"AddSubdirectory") | stats count()
+      as matches | filter matches:>0
+    for: 0s
+    labels:
+      severity: medium
+      sigma_id: 35bc7e28-ee6b-492f-ab04-da58fcf6402e
+    annotations:
+      summary: Windows Network Access Suspicious desktop.ini Action
+      description: Detects unusual processes accessing desktop.ini remotely over network
+        share, which can be leveraged to alter how Explorer displays a folder's content
+        (i.e. renaming files) without changing them on disk.
+      author: Tim Shelton (HAWK.IO)
+      tags: attack.privilege-escalation, attack.persistence, attack.t1547.009
+      references: https://isc.sans.edu/forums/diary/Desktopini+as+a+postexploitation+tool/25912/
+  - alert: New_or_Renamed_User_Account_with_Character
+    expr: (event.code:=4720 AND SamAccountName:"$" OR event.code:=4781 AND NewTargetUserName:"$")
+      AND NOT (event.code:=4720 AND user.target.name:="HomeGroupUser$") | stats count()
+      as matches | filter matches:>0
+    for: 0s
+    labels:
+      severity: medium
+      sigma_id: cfeed607-6aa4-4bbd-9627-b637deb723c8
+    annotations:
+      summary: New or Renamed User Account with '$' Character
+      description: 'Detects the creation of a user with the "$" character. This can
+        be used by attackers to hide a user or trick detection systems that lack the
+        parsing mechanisms.
+
+        '
+      author: Ilyas Ochkov, oscd.community
+      tags: attack.stealth, attack.t1036
+      references: https://twitter.com/SBousseaden/status/1387743867663958021
+  - alert: Denied_Access_To_Remote_Desktop
+    expr: event.code:=4825 | stats count() as matches | filter matches:>0
+    for: 0s
+    labels:
+      severity: medium
+      sigma_id: 8e5c03fa-b7f0-11ea-b242-07e0576828d9
+    annotations:
+      summary: Denied Access To Remote Desktop
+      description: 'This event is generated when an authenticated user who is not
+        allowed to log on remotely attempts to connect to this computer through Remote
+        Desktop.
+
+        Often, this event can be generated by attackers when searching for available
+        windows servers in the network.
+
+        '
+      author: Pushkarev Dmitry
+      tags: attack.lateral-movement, attack.t1021.001
+      references: https://www.ultimatewindowssecurity.com/securitylog/encyclopedia/event.aspx?eventid=4825
+  - alert: Password_Policy_Enumerated
+    expr: event.code:=4661 AND AccessList:"%%5392" AND ObjectServer:="Security Account
+      Manager" | stats count() as matches | filter matches:>0
+    for: 0s
+    labels:
+      severity: medium
+      sigma_id: 12ba6a38-adb3-4d6b-91ba-a7fb248e3199
+    annotations:
+      summary: Password Policy Enumerated
+      description: Detects when the password policy is enumerated.
+      author: Zach Mathis
+      tags: attack.discovery, attack.t1201
+      references: 'https://learn.microsoft.com/en-us/previous-versions/windows/it-pro/windows-10/security/threat-protection/auditing/event-4661
+
+        https://github.com/jpalanco/alienvault-ossim/blob/f74359c0c027e42560924b5cff25cdf121e5505a/os-sim/agent/src/ParserUtil.py#L951'
+  - alert: Windows_Pcap_Drivers
+    expr: event.code:=4697 AND (ServiceFileName:"pcap" OR ServiceFileName:"npcap"
+      OR ServiceFileName:"npf" OR ServiceFileName:"nm3" OR ServiceFileName:"ndiscap"
+      OR ServiceFileName:"nmnt" OR ServiceFileName:"windivert" OR ServiceFileName:"USBPcap"
+      OR ServiceFileName:"pktmon") | stats count() as matches | filter matches:>0
+    for: 0s
+    labels:
+      severity: medium
+      sigma_id: 7b687634-ab20-11ea-bb37-0242ac130002
+    annotations:
+      summary: Windows Pcap Drivers
+      description: Detects Windows Pcap driver installation based on a list of associated
+        .sys files.
+      author: Cian Heasley
+      tags: attack.discovery, attack.credential-access, attack.t1040
+      references: https://ragged-lab.blogspot.com/2020/06/capturing-pcap-driver-installations.html#more
+  - alert: Possible_PetitPotam_Coerce_Authentication_Attempt
+    expr: event.code:=5145 AND ShareName:="\\\\"* AND ShareName:~"\\\\IPC\\$$" AND
+      RelativeTargetName:="lsarpc" AND user.name:="ANONYMOUS LOGON" | stats count()
+      as matches | filter matches:>0
+    for: 0s
+    labels:
+      severity: high
+      sigma_id: 1ce8c8a3-2723-48ed-8246-906ac91061a6
+    annotations:
+      summary: Possible PetitPotam Coerce Authentication Attempt
+      description: Detect PetitPotam coerced authentication activity.
+      author: Mauricio Velazco, Michael Haag
+      tags: attack.credential-access, attack.t1187
+      references: 'https://github.com/topotam/PetitPotam
+
+        https://github.com/splunk/security_content/blob/0dd6de32de2118b2818550df9e65255f4109a56d/detections/endpoint/petitpotam_network_share_access_request.yml'
+  - alert: PetitPotam_Suspicious_Kerberos_TGT_Request
+    expr: event.code:=4768 AND user.target.name:~"\\$$" AND CertThumbprint:* AND NOT
+      (source.ip:="::1" OR CertThumbprint:="") | stats count() as matches | filter
+      matches:>0
+    for: 0s
+    labels:
+      severity: high
+      sigma_id: 6a53d871-682d-40b6-83e0-b7c1a6c4e3a5
+    annotations:
+      summary: PetitPotam Suspicious Kerberos TGT Request
+      description: 'Detect suspicious Kerberos TGT requests.
+
+        Once an attacer obtains a computer certificate by abusing Active Directory
+        Certificate Services in combination with PetitPotam, the next step would be
+        to leverage the certificate for malicious purposes.
+
+        One way of doing this is to request a Kerberos Ticket Granting Ticket using
+        a tool like Rubeus.
+
+        This request will generate a 4768 event with some unusual fields depending
+        on the environment.
+
+        This analytic will require tuning, we recommend filtering Account_Name to
+        the Domain Controller computer accounts.
+
+        '
+      author: Mauricio Velazco, Michael Haag
+      tags: attack.credential-access, attack.t1187
+      references: 'https://github.com/topotam/PetitPotam
+
+        https://isc.sans.edu/forums/diary/Active+Directory+Certificate+Services+ADCS+PKI+domain+admin+vulnerability/27668/
+
+        https://github.com/splunk/security_content/blob/88d689fe8a055d8284337b9fad5d9152b42043db/detections/endpoint/petitpotam_suspicious_kerberos_tgt_request.yml'
+  - alert: Possible_DC_Shadow_Attack
+    expr: event.code:=4742 AND ServicePrincipalNames:"GC/" OR event.code:=5136 AND
+      AttributeLDAPDisplayName:="servicePrincipalName" AND AttributeValue:="GC/"*
+      | stats count() as matches | filter matches:>0
+    for: 0s
+    labels:
+      severity: medium
+      sigma_id: 32e19d25-4aed-4860-a55a-be99cb0bf7ed
+    annotations:
+      summary: Possible DC Shadow Attack
+      description: Detects DCShadow via create new SPN
+      author: Ilyas Ochkov, oscd.community, Chakib Gzenayi (@Chak092), Hosni Mribah
+      tags: attack.credential-access, attack.defense-impairment, attack.t1207
+      references: 'https://twitter.com/gentilkiwi/status/1003236624925413376
+
+        https://gist.github.com/gentilkiwi/dcc132457408cf11ad2061340dcb53c2
+
+        https://web.archive.org/web/20180203014709/https://blog.alsid.eu/dcshadow-explained-4510f52fc19d?gi=c426ac876c48'
+  - alert: PowerShell_Scripts_Installed_as_Services_Security
+    expr: event.code:=4697 AND (ServiceFileName:"powershell" OR ServiceFileName:"pwsh")
+      | stats count() as matches | filter matches:>0
+    for: 0s
+    labels:
+      severity: high
+      sigma_id: 2a926e6a-4b81-4011-8a96-e36cc8c04302
+    annotations:
+      summary: PowerShell Scripts Installed as Services - Security
+      description: Detects powershell script installed as a Service
+      author: oscd.community, Natalia Shornikova
+      tags: attack.execution, attack.t1569.002
+      references: https://speakerdeck.com/heirhabarov/hunting-for-powershell-abuse
+  - alert: Protected_Storage_Service_Access
+    expr: event.code:=5145 AND ShareName:"IPC" AND RelativeTargetName:="protected_storage"
+      | stats count() as matches | filter matches:>0
+    for: 0s
+    labels:
+      severity: high
+      sigma_id: 45545954-4016-43c6-855e-eae8f1c369dc
+    annotations:
+      summary: Protected Storage Service Access
+      description: Detects access to a protected_storage service over the network.
+        Potential abuse of DPAPI to extract domain backup keys from Domain Controllers
+      author: Roberto Rodriguez @Cyb3rWard0g
+      tags: attack.lateral-movement, attack.t1021.002
+      references: https://threathunterplaybook.com/hunts/windows/190620-DomainDPAPIBackupKeyExtraction/notebook.html
+  - alert: RDP_over_Reverse_SSH_Tunnel_WFP
+    expr: event.code:=5156 AND (SourcePort:=3389 AND (DestAddress:="127."* OR DestAddress:="::1")
+      OR DestPort:=3389 AND (SourceAddress:="127."* OR SourceAddress:="::1")) AND
+      NOT (FilterOrigin:="AppContainer Loopback" OR Application:~"\\\\thor\\.exe$"
+      OR Application:~"\\\\thor64\\.exe$") | stats count() as matches | filter matches:>0
+    for: 0s
+    labels:
+      severity: high
+      sigma_id: 5bed80b6-b3e8-428e-a3ae-d3c757589e41
+    annotations:
+      summary: RDP over Reverse SSH Tunnel WFP
+      description: Detects svchost hosting RDP termsvcs communicating with the loopback
+        address
+      author: Samir Bousseaden
+      tags: attack.command-and-control, attack.lateral-movement, attack.t1090.001,
+        attack.t1090.002, attack.t1021.001, car.2013-07-002
+      references: 'https://twitter.com/SBousseaden/status/1096148422984384514
+
+        https://github.com/sbousseaden/EVTX-ATTACK-SAMPLES/blob/44fbe85f72ee91582876b49678f9a26292a155fb/Command%20and%20Control/DE_RDP_Tunnel_5156.evtx'
+  - alert: Register_new_Logon_Process_by_Rubeus
+    expr: event.code:=4611 AND LogonProcessName:="User32LogonProcesss" | stats count()
+      as matches | filter matches:>0
+    for: 0s
+    labels:
+      severity: high
+      sigma_id: 12e6d621-194f-4f59-90cc-1959e21e69f7
+    annotations:
+      summary: Register new Logon Process by Rubeus
+      description: Detects potential use of Rubeus via registered new trusted logon
+        process
+      author: Roberto Rodriguez (source), Ilyas Ochkov (rule), oscd.community
+      tags: attack.lateral-movement, attack.privilege-escalation, attack.credential-access,
+        attack.t1558.003
+      references: https://posts.specterops.io/hunting-in-active-directory-unconstrained-delegation-forests-trusts-71f2b33688e1
+  - alert: Remote_PowerShell_Sessions_Network_Connections_WinRM
+    expr: event.code:=5156 AND (DestPort:in(5985, 5986)) AND LayerRTID:=44 | stats
+      count() as matches | filter matches:>0
+    for: 0s
+    labels:
+      severity: high
+      sigma_id: 13acf386-b8c6-4fe0-9a6e-c4756b974698
+    annotations:
+      summary: Remote PowerShell Sessions Network Connections (WinRM)
+      description: Detects basic PowerShell Remoting (WinRM) by monitoring for network
+        inbound connections to ports 5985 OR 5986
+      author: Roberto Rodriguez @Cyb3rWard0g
+      tags: attack.execution, attack.t1059.001
+      references: https://threathunterplaybook.com/hunts/windows/190511-RemotePwshExecution/notebook.html
+  - alert: Replay_Attack_Detected
+    expr: event.code:=4649 | stats count() as matches | filter matches:>0
+    for: 0s
+    labels:
+      severity: high
+      sigma_id: 5a44727c-3b85-4713-8c44-4401d5499629
+    annotations:
+      summary: Replay Attack Detected
+      description: Detects possible Kerberos Replay Attack on the domain controllers
+        when "KRB_AP_ERR_REPEAT" Kerberos response is sent to the client
+      author: frack113
+      tags: attack.credential-access, attack.t1558
+      references: 'https://github.com/Yamato-Security/EnableWindowsLogSettings/blob/7f6d755d45ac7cc9fc35b0cbf498e6aa4ef19def/ConfiguringSecurityLogAuditPolicies.md
+
+        https://learn.microsoft.com/en-us/previous-versions/windows/it-pro/windows-10/security/threat-protection/auditing/event-4649'
+  - alert: SAM_Registry_Hive_Handle_Request
+    expr: event.code:=4656 AND ObjectType:="Key" AND ObjectName:~"\\\\SAM$" | stats
+      count() as matches | filter matches:>0
+    for: 0s
+    labels:
+      severity: high
+      sigma_id: f8748f2c-89dc-4d95-afb0-5a2dfdbad332
+    annotations:
+      summary: SAM Registry Hive Handle Request
+      description: Detects handles requested to SAM registry hive
+      author: Roberto Rodriguez @Cyb3rWard0g
+      tags: attack.discovery, attack.t1012, attack.credential-access, attack.t1552.002
+      references: https://threathunterplaybook.com/hunts/windows/190725-SAMRegistryHiveHandleRequest/notebook.html
+  - alert: SCM_Database_Handle_Failure
+    expr: event.code:=4656 AND ObjectType:="SC_MANAGER OBJECT" AND ObjectName:="ServicesActive"
+      AND AccessMask:="0xf003f" AND NOT SubjectLogonId:="0x3e4" | stats count() as
+      matches | filter matches:>0
+    for: 0s
+    labels:
+      severity: medium
+      sigma_id: 13addce7-47b2-4ca0-a98f-1de964d1d669
+    annotations:
+      summary: SCM Database Handle Failure
+      description: Detects non-system users failing to get a handle of the SCM database.
+      author: Roberto Rodriguez @Cyb3rWard0g
+      tags: attack.discovery, attack.t1010
+      references: https://threathunterplaybook.com/hunts/windows/190826-RemoteSCMHandle/notebook.html
+  - alert: SCM_Database_Privileged_Operation
+    expr: event.code:=4674 AND ObjectType:="SC_MANAGER OBJECT" AND ObjectName:="servicesactive"
+      AND PrivilegeList:="SeTakeOwnershipPrivilege" AND NOT (SubjectLogonId:="0x3e4"
+      AND ProcessName:~":\\\\Windows\\\\System32\\\\services\\.exe$") | stats count()
+      as matches | filter matches:>0
+    for: 0s
+    labels:
+      severity: medium
+      sigma_id: dae8171c-5ec6-4396-b210-8466585b53e9
+    annotations:
+      summary: SCM Database Privileged Operation
+      description: Detects non-system users performing privileged operation os the
+        SCM database
+      author: Roberto Rodriguez @Cyb3rWard0g, Tim Shelton
+      tags: attack.privilege-escalation, attack.t1548
+      references: https://threathunterplaybook.com/hunts/windows/190826-RemoteSCMHandle/notebook.html
+  - alert: Potential_Secure_Deletion_with_SDelete
+    expr: (event.code:in(4656, 4663, 4658)) AND (ObjectName:~"\\.AAA$" OR ObjectName:~"\\.ZZZ$")
+      | stats count() as matches | filter matches:>0
+    for: 0s
+    labels:
+      severity: medium
+      sigma_id: 39a80702-d7ca-4a83-b776-525b1f86a36d
+    annotations:
+      summary: Potential Secure Deletion with SDelete
+      description: Detects files that have extensions commonly seen while SDelete
+        is used to wipe files.
+      author: Thomas Patzke
+      tags: attack.impact, attack.stealth, attack.defense-impairment, attack.t1070.004,
+        attack.t1027.005, attack.t1485, attack.t1553.002, attack.s0195
+      references: 'https://jpcertcc.github.io/ToolAnalysisResultSheet/details/sdelete.htm
+
+        https://www.jpcert.or.jp/english/pub/sr/ir_research.html
+
+        https://learn.microsoft.com/en-gb/sysinternals/downloads/sdelete'
+  - alert: Service_Installed_By_Unusual_Client_Security
+    expr: event.code:=4697 AND (ClientProcessId:=0 OR ParentProcessId:=0) | stats
+      count() as matches | filter matches:>0
+    for: 0s
+    labels:
+      severity: high
+      sigma_id: c4e92a97-a9ff-4392-9d2d-7a4c642768ca
+    annotations:
+      summary: Service Installed By Unusual Client - Security
+      description: Detects a service installed by a client which has PID 0 or whose
+        parent has PID 0
+      author: Tim Rauch (Nextron Systems), Elastic (idea)
+      tags: attack.persistence, attack.privilege-escalation, attack.t1543
+      references: 'https://www.elastic.co/guide/en/security/current/windows-service-installed-via-an-unusual-client.html
+
+        https://www.x86matthew.com/view_post?id=create_svc_rpc
+
+        https://twitter.com/SBousseaden/status/1490608838701166596'
+  - alert: Remote_Access_Tool_Services_Have_Been_Installed_Security
+    expr: event.code:=4697 AND (ServiceName:"AmmyyAdmin" OR ServiceName:"AnyDesk"
+      OR ServiceName:"Atera" OR ServiceName:"BASupportExpressSrvcUpdater" OR ServiceName:"BASupportExpressStandaloneService"
+      OR ServiceName:"chromoting" OR ServiceName:"GoToAssist" OR ServiceName:"GoToMyPC"
+      OR ServiceName:"jumpcloud" OR ServiceName:"LMIGuardianSvc" OR ServiceName:"LogMeIn"
+      OR ServiceName:"monblanking" OR ServiceName:"Parsec" OR ServiceName:"RManService"
+      OR ServiceName:"RPCPerformanceService" OR ServiceName:"RPCService" OR ServiceName:"SplashtopRemoteService"
+      OR ServiceName:"SSUService" OR ServiceName:"TeamViewer" OR ServiceName:"TightVNC"
+      OR ServiceName:"vncserver" OR ServiceName:"Zoho") | stats count() as matches
+      | filter matches:>0
+    for: 0s
+    labels:
+      severity: medium
+      sigma_id: c8b00925-926c-47e3-beea-298fd563728e
+    annotations:
+      summary: Remote Access Tool Services Have Been Installed - Security
+      description: Detects service installation of different remote access tools software.
+        These software are often abused by threat actors to perform
+      author: Connor Martin, Nasreddine Bencherchali (Nextron Systems)
+      tags: attack.privilege-escalation, attack.persistence, attack.execution, attack.t1543.003,
+        attack.t1569.002
+      references: https://redcanary.com/blog/misbehaving-rats/
+  - alert: File_Access_Of_Signal_Desktop_Sensitive_Data
+    expr: event.code:=4663 AND ObjectType:="File" AND ObjectName:"\\AppData\\Roaming\\Signal\\"
+      AND (ObjectName:~"\\\\config\\.json$" OR ObjectName:~"\\\\db\\.sqlite$") AND
+      NOT (ProcessName:~"\\\\signal-portable\\.exe$" OR ProcessName:~"\\\\signal\\.exe$")
+      | stats count() as matches | filter matches:>0
+    for: 0s
+    labels:
+      severity: medium
+      sigma_id: 5d6c375a-18ae-4952-b4f6-8b803f6c8555
+    annotations:
+      summary: File Access Of Signal Desktop Sensitive Data
+      description: 'Detects access to Signal Desktop''s sensitive data files: db.sqlite
+        and config.json.
+
+        The db.sqlite file in Signal Desktop stores all locally saved messages in
+        an encrypted SQLite database, while the config.json contains the decryption
+        key needed to access that data.
+
+        Since the key is stored in plain text, a threat actor who gains access to
+        both files can decrypt and read sensitive messages without needing the users
+        credentials.
+
+        Currently the rule only covers the default Signal installation path in AppData\Roaming.
+        Signal Portable installations may use different paths based on user configuration.
+        Additional paths can be added to the selection as needed.
+
+        '
+      author: Andreas Braathen (mnemonic.io)
+      tags: attack.credential-access, attack.t1003
+      references: 'https://cloud.google.com/blog/topics/threat-intelligence/russia-targeting-signal-messenger/
+
+        https://vmois.dev/query-signal-desktop-messages-sqlite/'
+  - alert: SMB_Create_Remote_File_Admin_Share
+    expr: event.code:=5145 AND ShareName:~"C\\$$" AND AccessMask:="0x2" AND NOT user.name:~"\\$$"
+      AND NOT source.ip:="::1" | stats count() as matches | filter matches:>0
+    for: 0s
+    labels:
+      severity: high
+      sigma_id: b210394c-ba12-4f89-9117-44a2464b9511
+    annotations:
+      summary: SMB Create Remote File Admin Share
+      description: Look for non-system accounts SMB accessing a file with write (0x2)
+        access mask via administrative share (i.e C$).
+      author: Jose Rodriguez (@Cyb3rPandaH), OTR (Open Threat Research)
+      tags: attack.lateral-movement, attack.t1021.002
+      references: 'https://github.com/OTRF/ThreatHunter-Playbook/blob/f7a58156dbfc9b019f17f638b8c62d22e557d350/playbooks/WIN-201012004336.yaml
+
+        https://securitydatasets.com/notebooks/atomic/windows/lateral_movement/SDWIN-200806015757.html?highlight=create%20file'
+  - alert: A_New_Trust_Was_Created_To_A_Domain
+    expr: event.code:=4706 | stats count() as matches | filter matches:>0
+    for: 0s
+    labels:
+      severity: medium
+      sigma_id: 0255a820-e564-4e40-af2b-6ac61160335c
+    annotations:
+      summary: A New Trust Was Created To A Domain
+      description: Addition of domains is seldom and should be verified for legitimacy.
+      author: Thomas Patzke
+      tags: attack.privilege-escalation, attack.persistence, attack.t1098
+      references: https://learn.microsoft.com/en-us/previous-versions/windows/it-pro/windows-10/security/threat-protection/auditing/event-4706
+  - alert: Addition_of_SID_History_to_Active_Directory_Object
+    expr: event.code:in(4765, 4766) OR event.code:=4738 AND NOT (SidHistory:in("-",
+      "%%1793")) AND NOT SidHistory:"" | stats count() as matches | filter matches:>0
+    for: 0s
+    labels:
+      severity: medium
+      sigma_id: 2632954e-db1c-49cb-9936-67d1ef1d17d2
+    annotations:
+      summary: Addition of SID History to Active Directory Object
+      description: An attacker can use the SID history attribute to gain additional
+        privileges.
+      author: Thomas Patzke, @atc_project (improvements)
+      tags: attack.persistence, attack.privilege-escalation, attack.stealth, attack.t1134.005
+      references: https://adsecurity.org/?p=1772
+  - alert: Win_Susp_Computer_Name_Containing_Samtheadmin
+    expr: SamAccountName:="SAMTHEADMIN-"* AND SamAccountName:~"\\$$" OR user.target.name:="SAMTHEADMIN-"*
+      AND user.target.name:~"\\$$" | stats count() as matches | filter matches:>0
+    for: 0s
+    labels:
+      severity: critical
+      sigma_id: 39698b3f-da92-4bc6-bfb5-645a98386e45
+    annotations:
+      summary: Win Susp Computer Name Containing Samtheadmin
+      description: Detects suspicious computer name samtheadmin-{1..100}$ generated
+        by hacktool
+      author: elhoim
+      tags: attack.initial-access, cve.2021-42278, cve.2021-42287, attack.persistence,
+        attack.privilege-escalation, attack.stealth, attack.t1078
+      references: 'https://twitter.com/malmoeb/status/1511760068743766026
+
+        https://github.com/helloexp/0day/blob/614227a7b9beb0e91e7e2c6a5e532e6f7a8e883c/00-CVE_EXP/CVE-2021-42287/sam-the-admin/sam_the_admin.py'
+  - alert: Password_Change_on_Directory_Service_Restore_Mode_DSRM_Account
+    expr: event.code:=4794 | stats count() as matches | filter matches:>0
+    for: 0s
+    labels:
+      severity: high
+      sigma_id: 53ad8e36-f573-46bf-97e4-15ba5bf4bb51
+    annotations:
+      summary: Password Change on Directory Service Restore Mode (DSRM) Account
+      description: 'Detects potential attempts made to set the Directory Services
+        Restore Mode administrator password.
+
+        The Directory Service Restore Mode (DSRM) account is a local administrator
+        account on Domain Controllers.
+
+        Attackers may change the password in order to obtain persistence.
+
+        '
+      author: Thomas Patzke
+      tags: attack.privilege-escalation, attack.persistence, attack.t1098
+      references: 'https://adsecurity.org/?p=1714
+
+        https://learn.microsoft.com/en-us/previous-versions/windows/it-pro/windows-10/security/threat-protection/auditing/event-4794'
+  - alert: Account_Tampering_Suspicious_Failed_Logon_Reasons
+    expr: (event.code:in(4625, 4776)) AND (Status:in("0xC0000072", "0xC000006F", "0xC0000070",
+      "0xC0000413", "0xC000018C", "0xC000015B") OR SubStatus:in("0xC0000072", "0xC000006F",
+      "0xC0000070", "0xC0000413", "0xC000018C", "0xC000015B")) AND NOT SubjectUserSid:="S-1-0-0"
+      | stats count() as matches | filter matches:>0
+    for: 0s
+    labels:
+      severity: medium
+      sigma_id: 9eb99343-d336-4020-a3cd-67f3819e68ee
+    annotations:
+      summary: Account Tampering - Suspicious Failed Logon Reasons
+      description: This method uses uncommon error codes on failed logons to determine
+        suspicious activity and tampering with accounts that have been disabled or
+        somehow restricted.
+      author: Florian Roth (Nextron Systems)
+      tags: attack.persistence, attack.privilege-escalation, attack.initial-access,
+        attack.stealth, attack.t1078
+      references: 'https://learn.microsoft.com/en-us/previous-versions/windows/it-pro/windows-10/security/threat-protection/auditing/event-4625
+
+        https://twitter.com/SBousseaden/status/1101431884540710913'
+  - alert: Group_Policy_Abuse_for_Privilege_Addition
+    expr: event.code:=5136 AND AttributeLDAPDisplayName:="gPCMachineExtensionNames"
+      AND (AttributeValue:"827D319E-6EAC-11D2-A4EA-00C04F79F83A" OR AttributeValue:"803E14A0-B4FB-11D0-A0D0-00A0C90F574B")
+      | stats count() as matches | filter matches:>0
+    for: 0s
+    labels:
+      severity: medium
+      sigma_id: 1c480e10-7ee1-46d4-8ed2-85f9789e3ce4
+    annotations:
+      summary: Group Policy Abuse for Privilege Addition
+      description: 'Detects the first occurrence of a modification to Group Policy
+        Object Attributes to add privileges to user accounts or use them to add users
+        as local admins.
+
+        '
+      author: "Elastic, Josh Nickels, Marius Rothenb\xFCcher"
+      tags: attack.privilege-escalation, attack.defense-impairment, attack.t1484.001
+      references: https://www.elastic.co/guide/en/security/current/group-policy-abuse-for-privilege-addition.html#_setup_275
+  - alert: Startup_Logon_Script_Added_to_Group_Policy_Object
+    expr: (event.code:in(5136, 5145)) AND ((AttributeLDAPDisplayName:in("gPCMachineExtensionNames",
+      "gPCUserExtensionNames")) AND AttributeValue:"42B5FAAE-6536-11D2-AE5A-0000F87571E3"
+      AND (AttributeValue:"40B6664F-4972-11D1-A7CA-0000F87571E3" OR AttributeValue:"40B66650-4972-11D1-A7CA-0000F87571E3")
+      OR ShareName:~"\\\\SYSVOL$" AND (RelativeTargetName:~"\\\\scripts\\.ini$" OR
+      RelativeTargetName:~"\\\\psscripts\\.ini$") AND AccessList:"%%4417") | stats
+      count() as matches | filter matches:>0
+    for: 0s
+    labels:
+      severity: medium
+      sigma_id: 123e4e6d-b123-48f8-b261-7214938acaf0
+    annotations:
+      summary: Startup/Logon Script Added to Group Policy Object
+      description: 'Detects the modification of Group Policy Objects (GPO) to add
+        a startup/logon script to users or computer objects.
+
+        '
+      author: "Elastic, Josh Nickels, Marius Rothenb\xFCcher"
+      tags: attack.persistence, attack.privilege-escalation, attack.defense-impairment,
+        attack.t1484.001, attack.t1547
+      references: https://www.elastic.co/guide/en/security/current/startup-logon-script-added-to-group-policy-object.html
+  - alert: Kerberos_Manipulation
+    expr: (event.code:in(675, 4768, 4769, 4771)) AND (Status:in("0x9", "0xA", "0xB",
+      "0xF", "0x10", "0x11", "0x13", "0x14", "0x1A", "0x1F", "0x21", "0x22", "0x23",
+      "0x24", "0x26", "0x27", "0x28", "0x29", "0x2C", "0x2D", "0x2E", "0x2F", "0x31",
+      "0x32", "0x3E", "0x3F", "0x40", "0x41", "0x43", "0x44")) | stats count() as
+      matches | filter matches:>0
+    for: 0s
+    labels:
+      severity: high
+      sigma_id: f7644214-0eb0-4ace-9455-331ec4c09253
+    annotations:
+      summary: Kerberos Manipulation
+      description: Detects failed Kerberos TGT issue operation. This can be a sign
+        of manipulations of TGT messages by an attacker.
+      author: Florian Roth (Nextron Systems)
+      tags: attack.credential-access, attack.t1212
+      references: https://learn.microsoft.com/en-us/previous-versions/windows/it-pro/windows-10/security/threat-protection/auditing/event-4771
+  - alert: Suspicious_LDAP_Attributes_Used
+    expr: event.code:=5136 AND AttributeValue:* AND (AttributeLDAPDisplayName:in("primaryInternationalISDNNumber",
+      "otherFacsimileTelephoneNumber", "primaryTelexNumber")) | stats count() as matches
+      | filter matches:>0
+    for: 0s
+    labels:
+      severity: high
+      sigma_id: d00a9a72-2c09-4459-ad03-5e0a23351e36
+    annotations:
+      summary: Suspicious LDAP-Attributes Used
+      description: Detects the usage of particular AttributeLDAPDisplayNames, which
+        are known for data exchange via LDAP by the tool LDAPFragger and are additionally
+        not commonly used in companies.
+      author: xknow @xknow_infosec
+      tags: attack.t1001.003, attack.command-and-control
+      references: 'https://medium.com/@ivecodoe/detecting-ldapfragger-a-newly-released-cobalt-strike-beacon-using-ldap-for-c2-communication-c274a7f00961
+
+        https://blog.fox-it.com/2020/03/19/ldapfragger-command-and-control-over-ldap-attributes/
+
+        https://github.com/fox-it/LDAPFragger'
+  - alert: Suspicious_Windows_ANONYMOUS_LOGON_Local_Account_Created
+    expr: event.code:=4720 AND SamAccountName:"ANONYMOUS" AND SamAccountName:"LOGON"
+      | stats count() as matches | filter matches:>0
+    for: 0s
+    labels:
+      severity: high
+      sigma_id: 1bbf25b9-8038-4154-a50b-118f2a32be27
+    annotations:
+      summary: Suspicious Windows ANONYMOUS LOGON Local Account Created
+      description: Detects the creation of suspicious accounts similar to ANONYMOUS
+        LOGON, such as using additional spaces. Created as an covering detection for
+        exclusion of Logon Type 3 from ANONYMOUS LOGON accounts.
+      author: James Pemberton / @4A616D6573
+      tags: attack.persistence, attack.t1136.001, attack.t1136.002
+      references: https://twitter.com/SBousseaden/status/1189469425482829824
+  - alert: Suspicious_Remote_Logon_with_Explicit_Credentials
+    expr: event.code:=4648 AND (ProcessName:~"\\\\cmd\\.exe$" OR ProcessName:~"\\\\powershell\\.exe$"
+      OR ProcessName:~"\\\\pwsh\\.exe$" OR ProcessName:~"\\\\winrs\\.exe$" OR ProcessName:~"\\\\wmic\\.exe$"
+      OR ProcessName:~"\\\\net\\.exe$" OR ProcessName:~"\\\\net1\\.exe$" OR ProcessName:~"\\\\reg\\.exe$")
+      AND NOT (TargetServerName:="localhost" OR user.name:~"\\$$" AND user.target.name:~"\\$$")
+      | stats count() as matches | filter matches:>0
+    for: 0s
+    labels:
+      severity: medium
+      sigma_id: 941e5c45-cda7-4864-8cea-bbb7458d194a
+    annotations:
+      summary: Suspicious Remote Logon with Explicit Credentials
+      description: Detects suspicious processes logging on with explicit credentials
+      author: oscd.community, Teymur Kheirkhabarov @HeirhabarovT, Zach Stanford @svch0st,
+        Tim Shelton
+      tags: attack.privilege-escalation, attack.persistence, attack.initial-access,
+        attack.stealth, attack.t1078, attack.lateral-movement
+      references: https://drive.google.com/file/d/1lKya3_mLnR3UQuCoiYruO3qgu052_iS_/view
+  - alert: Password_Dumper_Activity_on_LSASS
+    expr: event.code:=4656 AND ProcessName:~"\\\\lsass\\.exe$" AND AccessMask:="0x705"
+      AND ObjectType:="SAM_DOMAIN" | stats count() as matches | filter matches:>0
+    for: 0s
+    labels:
+      severity: high
+      sigma_id: aa1697b7-d611-4f9a-9cb2-5125b4ccfd5c
+    annotations:
+      summary: Password Dumper Activity on LSASS
+      description: Detects process handle on LSASS process with certain access mask
+        and object type SAM_DOMAIN
+      author: sigma
+      tags: attack.credential-access, attack.t1003.001
+      references: https://twitter.com/jackcr/status/807385668833968128
+  - alert: Potentially_Suspicious_AccessMask_Requested_From_LSASS
+    expr: (event.code:=4656 AND ObjectName:~"\\\\lsass\\.exe$" AND (AccessMask:"0x40"
+      OR AccessMask:"0x1400" OR AccessMask:"0x100000" OR AccessMask:"0x1410" OR AccessMask:"0x1010"
+      OR AccessMask:"0x1438" OR AccessMask:"0x143a" OR AccessMask:"0x1418" OR AccessMask:"0x1f0fff"
+      OR AccessMask:"0x1f1fff" OR AccessMask:"0x1f2fff" OR AccessMask:"0x1f3fff")
+      OR event.code:=4663 AND ObjectName:~"\\\\lsass\\.exe$" AND (AccessList:"4484"
+      OR AccessList:"4416")) AND NOT ((ProcessName:~"\\\\csrss\\.exe$" OR ProcessName:~"\\\\GamingServices\\.exe$"
+      OR ProcessName:~"\\\\lsm\\.exe$" OR ProcessName:~"\\\\MicrosoftEdgeUpdate\\.exe$"
+      OR ProcessName:~"\\\\minionhost\\.exe$" OR ProcessName:~"\\\\MRT\\.exe$" OR
+      ProcessName:~"\\\\MsMpEng\\.exe$" OR ProcessName:~"\\\\perfmon\\.exe$" OR ProcessName:~"\\\\procexp\\.exe$"
+      OR ProcessName:~"\\\\procexp64\\.exe$" OR ProcessName:~"\\\\procexp64a\\.exe$"
+      OR ProcessName:~"\\\\svchost\\.exe$" OR ProcessName:~"\\\\taskmgr\\.exe$" OR
+      ProcessName:~"\\\\thor\\.exe$" OR ProcessName:~"\\\\thor64\\.exe$" OR ProcessName:~"\\\\vmtoolsd\\.exe$"
+      OR ProcessName:~"\\\\VsTskMgr\\.exe$" OR ProcessName:~"\\\\wininit\\.exe$" OR
+      ProcessName:~"\\\\wmiprvse\\.exe$" OR ProcessName:~"RtkAudUService64$") AND
+      (ProcessName:":\\Program Files (x86)\\" OR ProcessName:":\\Program Files\\"
+      OR ProcessName:":\\ProgramData\\Microsoft\\Windows Defender\\Platform\\" OR
+      ProcessName:":\\Windows\\SysNative\\" OR ProcessName:":\\Windows\\System32\\"
+      OR ProcessName:":\\Windows\\SysWow64\\" OR ProcessName:":\\Windows\\Temp\\asgard2-agent\\")
+      OR ProcessName:":\\Program Files" OR ProcessName:~":\\\\Windows\\\\System32\\\\taskhostw\\.exe$"
+      OR ProcessName:~":\\\\Windows\\\\System32\\\\msiexec\\.exe$" OR ProcessName:~":\\\\Windows\\\\CCM\\\\CcmExec\\.exe$"
+      OR (ProcessName:~":\\\\Windows\\\\Sysmon64\\.exe$" OR ProcessName:~":\\\\Windows\\\\Sysmon64a\\.exe$")
+      AND AccessList:"%%4484" OR ProcessName:":\\Windows\\Temp\\asgard2-agent-sc\\aurora\\"
+      AND ProcessName:~"\\\\aurora-agent-64\\.exe$" AND AccessList:"%%4484" OR ProcessName:~"\\\\x64\\\\SCENARIOENGINE\\.EXE$"
+      AND AccessList:"%%4484" OR ProcessName:":\\Users\\" AND ProcessName:"\\AppData\\Local\\Temp\\is-"
+      AND ProcessName:~"\\\\avira_system_speedup\\.tmp$" AND AccessList:"%%4484" OR
+      ProcessName:":\\Windows\\Temp\\" AND ProcessName:~"\\\\avira_speedup_setup_update\\.tmp$"
+      AND AccessList:"%%4484" OR ProcessName:~":\\\\Windows\\\\System32\\\\snmp\\.exe$"
+      AND AccessList:"%%4484" OR ProcessName:":\\Windows\\SystemTemp\\" AND ProcessName:~"\\\\GoogleUpdate\\.exe$"
+      AND AccessList:"%%4484") AND NOT ((ProcessName:~"\\\\procmon64\\.exe$" OR ProcessName:~"\\\\procmon64a\\.exe$"
+      OR ProcessName:~"\\\\procmon\\.exe$") AND AccessList:"%%4484") | stats count()
+      as matches | filter matches:>0
+    for: 0s
+    labels:
+      severity: medium
+      sigma_id: 4a1b6da0-d94f-4fc3-98fc-2d9cb9e5ee76
+    annotations:
+      summary: Potentially Suspicious AccessMask Requested From LSASS
+      description: Detects process handle on LSASS process with certain access mask
+      author: Roberto Rodriguez, Teymur Kheirkhabarov, Dimitrios Slamaris, Mark Russinovich,
+        Aleksey Potapov, oscd.community (update)
+      tags: attack.credential-access, car.2019-04-004, attack.t1003.001
+      references: 'https://web.archive.org/web/20230208123920/https://cyberwardog.blogspot.com/2017/03/chronicles-of-threat-hunter-hunting-for_22.html
+
+        https://www.slideshare.net/heirhabarov/hunting-for-credentials-dumping-in-windows-environment'
+  - alert: Reconnaissance_Activity
+    expr: event.code:=4661 AND AccessMask:="0x2d" AND (ObjectType:in("SAM_USER", "SAM_GROUP"))
+      AND ObjectName:="S-1-5-21-"* AND (ObjectName:~"-500$" OR ObjectName:~"-512$")
+      | stats count() as matches | filter matches:>0
+    for: 0s
+    labels:
+      severity: high
+      sigma_id: 968eef52-9cff-4454-8992-1e74b9cbad6c
+    annotations:
+      summary: Reconnaissance Activity
+      description: Detects activity as "net user administrator /domain" and "net group
+        domain admins /domain"
+      author: Florian Roth (Nextron Systems), Jack Croock (method), Jonhnathan Ribeiro
+        (improvements), oscd.community
+      tags: attack.discovery, attack.t1087.002, attack.t1069.002, attack.s0039
+      references: https://findingbad.blogspot.de/2017/01/hunting-what-does-it-look-like.html
+  - alert: Password_Protected_ZIP_File_Opened
+    expr: event.code:=5379 AND TargetName:"Microsoft_Windows_Shell_ZipFolder:filename"
+      AND NOT TargetName:"\\Temporary Internet Files\\Content.Outlook" | stats count()
+      as matches | filter matches:>0
+    for: 0s
+    labels:
+      severity: medium
+      sigma_id: 00ba9da1-b510-4f6b-b258-8d338836180f
+    annotations:
+      summary: Password Protected ZIP File Opened
+      description: Detects the extraction of password protected ZIP archives. See
+        the filename variable for more details on which file has been opened.
+      author: Florian Roth (Nextron Systems)
+      tags: attack.stealth, attack.t1027
+      references: https://twitter.com/sbousseaden/status/1523383197513379841
+  - alert: Password_Protected_ZIP_File_Opened_Suspicious_Filenames
+    expr: event.code:=5379 AND TargetName:"Microsoft_Windows_Shell_ZipFolder:filename"
+      AND (TargetName:"invoice" OR TargetName:"new order" OR TargetName:"rechnung"
+      OR TargetName:"factura" OR TargetName:"delivery" OR TargetName:"purchase" OR
+      TargetName:"order" OR TargetName:"payment") | stats count() as matches | filter
+      matches:>0
+    for: 0s
+    labels:
+      severity: high
+      sigma_id: 54f0434b-726f-48a1-b2aa-067df14516e4
+    annotations:
+      summary: Password Protected ZIP File Opened (Suspicious Filenames)
+      description: Detects the extraction of password protected ZIP archives with
+        suspicious file names. See the filename variable for more details on which
+        file has been opened.
+      author: Florian Roth (Nextron Systems)
+      tags: attack.command-and-control, attack.stealth, attack.t1027, attack.t1105,
+        attack.t1036
+      references: https://twitter.com/sbousseaden/status/1523383197513379841
+  - alert: Password_Protected_ZIP_File_Opened_Email_Attachment
+    expr: event.code:=5379 AND TargetName:"Microsoft_Windows_Shell_ZipFolder:filename"
+      AND TargetName:"\\Temporary Internet Files\\Content.Outlook" | stats count()
+      as matches | filter matches:>0
+    for: 0s
+    labels:
+      severity: high
+      sigma_id: 571498c8-908e-40b4-910b-d2369159a3da
+    annotations:
+      summary: Password Protected ZIP File Opened (Email Attachment)
+      description: Detects the extraction of password protected ZIP archives. See
+        the filename variable for more details on which file has been opened.
+      author: Florian Roth (Nextron Systems)
+      tags: attack.initial-access, attack.stealth, attack.t1027, attack.t1566.001
+      references: https://twitter.com/sbousseaden/status/1523383197513379841
+  - alert: Uncommon_Outbound_Kerberos_Connection_Security
+    expr: event.code:=5156 AND DestPort:=88 AND NOT ((Application:="\\device\\harddiskvolume"*
+      OR Application:="C:"*) AND Application:~"\\\\Windows\\\\System32\\\\lsass\\.exe$")
+      AND NOT ((Application:="\\device\\harddiskvolume"* OR Application:="C:"*) AND
+      (Application:~"\\\\Program Files \\(x86\\)\\\\Google\\\\Chrome\\\\Application\\\\chrome\\.exe$"
+      OR Application:~"\\\\Program Files\\\\Google\\\\Chrome\\\\Application\\\\chrome\\.exe$")
+      OR (Application:="\\device\\harddiskvolume"* OR Application:="C:"*) AND (Application:~"\\\\Program
+      Files \\(x86\\)\\\\Mozilla Firefox\\\\firefox\\.exe$" OR Application:~"\\\\Program
+      Files\\\\Mozilla Firefox\\\\firefox\\.exe$") OR Application:~"\\\\tomcat\\\\bin\\\\tomcat8\\.exe$")
+      | stats count() as matches | filter matches:>0
+    for: 0s
+    labels:
+      severity: medium
+      sigma_id: eca91c7c-9214-47b9-b4c5-cb1d7e4f2350
+    annotations:
+      summary: Uncommon Outbound Kerberos Connection - Security
+      description: 'Detects uncommon outbound network activity via Kerberos default
+        port indicating possible lateral movement or first stage PrivEsc via delegation.
+
+        '
+      author: Ilyas Ochkov, oscd.community
+      tags: attack.lateral-movement, attack.credential-access, attack.t1558.003
+      references: https://github.com/GhostPack/Rubeus
+  - alert: Possible_Shadow_Credentials_Added
+    expr: event.code:=5136 AND AttributeLDAPDisplayName:="msDS-KeyCredentialLink"
+      | stats count() as matches | filter matches:>0
+    for: 0s
+    labels:
+      severity: high
+      sigma_id: f598ea0c-c25a-4f72-a219-50c44411c791
+    annotations:
+      summary: Possible Shadow Credentials Added
+      description: Detects possible addition of shadow credentials to an active directory
+        object.
+      author: Nasreddine Bencherchali (Nextron Systems), Elastic (idea)
+      tags: attack.persistence, attack.credential-access, attack.defense-impairment,
+        attack.t1556
+      references: 'https://www.elastic.co/guide/en/security/8.4/potential-shadow-credentials-added-to-ad-object.html
+
+        https://cyberstoph.org/posts/2022/03/detecting-shadow-credentials/
+
+        https://twitter.com/SBousseaden/status/1581300963650187264?'
+  - alert: Suspicious_PsExec_Execution
+    expr: event.code:=5145 AND ShareName:="\\\\*\\IPC$" AND (RelativeTargetName:~"-stdin$"
+      OR RelativeTargetName:~"-stdout$" OR RelativeTargetName:~"-stderr$") AND NOT
+      RelativeTargetName:="PSEXESVC"* | stats count() as matches | filter matches:>0
+    for: 0s
+    labels:
+      severity: high
+      sigma_id: c462f537-a1e3-41a6-b5fc-b2c2cef9bf82
+    annotations:
+      summary: Suspicious PsExec Execution
+      description: detects execution of psexec or paexec with renamed service name,
+        this rule helps to filter out the noise if psexec is used for legit purposes
+        or if attacker uses a different psexec client other than sysinternal one
+      author: Samir Bousseaden
+      tags: attack.lateral-movement, attack.t1021.002
+      references: https://web.archive.org/web/20230329171218/https://blog.menasec.net/2019/02/threat-hunting-3-detecting-psexec.html
+  - alert: Suspicious_Access_to_Sensitive_File_Extensions
+    expr: event.code:=5145 AND (RelativeTargetName:~"\\.bak$" OR RelativeTargetName:~"\\.dmp$"
+      OR RelativeTargetName:~"\\.edb$" OR RelativeTargetName:~"\\.kirbi$" OR RelativeTargetName:~"\\.msg$"
+      OR RelativeTargetName:~"\\.nsf$" OR RelativeTargetName:~"\\.nst$" OR RelativeTargetName:~"\\.oab$"
+      OR RelativeTargetName:~"\\.ost$" OR RelativeTargetName:~"\\.pst$" OR RelativeTargetName:~"\\.rdp$")
+      | stats count() as matches | filter matches:>0
+    for: 0s
+    labels:
+      severity: medium
+      sigma_id: 91c945bc-2ad1-4799-a591-4d00198a1215
+    annotations:
+      summary: Suspicious Access to Sensitive File Extensions
+      description: Detects known sensitive file extensions accessed on a network share
+      author: Samir Bousseaden
+      tags: attack.collection, attack.t1039
+      references: Internal Research
+  - alert: Suspicious_Kerberos_RC4_Ticket_Encryption
+    expr: event.code:=4769 AND TicketOptions:="0x40810000" AND TicketEncryptionType:="0x17"
+      AND NOT ServiceName:~"\\$$" | stats count() as matches | filter matches:>0
+    for: 0s
+    labels:
+      severity: medium
+      sigma_id: 496a0e47-0a33-4dca-b009-9e6ca3591f39
+    annotations:
+      summary: Suspicious Kerberos RC4 Ticket Encryption
+      description: Detects service ticket requests using RC4 encryption type
+      author: Florian Roth (Nextron Systems)
+      tags: attack.credential-access, attack.t1558.003
+      references: 'https://adsecurity.org/?p=3458
+
+        https://www.trimarcsecurity.com/single-post/TrimarcResearch/Detecting-Kerberoasting-Activity'
+  - alert: Suspicious_Scheduled_Task_Creation
+    expr: event.code:=4698 AND (TaskContent:"\\AppData\\Local\\Temp\\" OR TaskContent:"\\AppData\\Roaming\\"
+      OR TaskContent:"\\Users\\Public\\" OR TaskContent:"\\WINDOWS\\Temp\\" OR TaskContent:"C:\\Temp\\"
+      OR TaskContent:"\\Desktop\\" OR TaskContent:"\\Downloads\\" OR TaskContent:"\\Temporary
+      Internet" OR TaskContent:"C:\\ProgramData\\" OR TaskContent:"C:\\Perflogs\\")
+      AND (TaskContent:"regsvr32" OR TaskContent:"rundll32" OR TaskContent:"cmd.exe</Command>"
+      OR TaskContent:"cmd</Command>" OR TaskContent:"<Arguments>/c " OR TaskContent:"<Arguments>/k
+      " OR TaskContent:"<Arguments>/r " OR TaskContent:"powershell" OR TaskContent:"pwsh"
+      OR TaskContent:"mshta" OR TaskContent:"wscript" OR TaskContent:"cscript" OR
+      TaskContent:"certutil" OR TaskContent:"bitsadmin" OR TaskContent:"bash.exe"
+      OR TaskContent:"bash " OR TaskContent:"scrcons" OR TaskContent:"wmic " OR TaskContent:"wmic.exe"
+      OR TaskContent:"forfiles" OR TaskContent:"scriptrunner" OR TaskContent:"hh.exe")
+      | stats count() as matches | filter matches:>0
+    for: 0s
+    labels:
+      severity: high
+      sigma_id: 3a734d25-df5c-4b99-8034-af1ddb5883a4
+    annotations:
+      summary: Suspicious Scheduled Task Creation
+      description: Detects suspicious scheduled task creation events. Based on attributes
+        such as paths, commands line flags, etc.
+      author: Nasreddine Bencherchali (Nextron Systems)
+      tags: attack.execution, attack.privilege-escalation, attack.persistence, attack.t1053.005
+      references: https://learn.microsoft.com/en-us/previous-versions/windows/it-pro/windows-10/security/threat-protection/auditing/event-4698
+  - alert: Important_Scheduled_Task_Deleted_Disabled
+    expr: (event.code:in(4699, 4701)) AND (TaskName:"\\Windows\\SystemRestore\\SR"
+      OR TaskName:"\\Windows\\Windows Defender\\" OR TaskName:"\\Windows\\BitLocker"
+      OR TaskName:"\\Windows\\WindowsBackup\\" OR TaskName:"\\Windows\\WindowsUpdate\\"
+      OR TaskName:"\\Windows\\UpdateOrchestrator\\Schedule" OR TaskName:"\\Windows\\ExploitGuard")
+      AND NOT (event.code:=4699 AND user.name:~"\\$$" AND TaskName:"\\Windows\\Windows
+      Defender\\") | stats count() as matches | filter matches:>0
+    for: 0s
+    labels:
+      severity: high
+      sigma_id: 7595ba94-cf3b-4471-aa03-4f6baa9e5fad
+    annotations:
+      summary: Important Scheduled Task Deleted/Disabled
+      description: Detects when adversaries stop services or processes by deleting
+        or disabling their respective scheduled tasks in order to conduct data destructive
+        activities
+      author: Nasreddine Bencherchali (Nextron Systems)
+      tags: attack.execution, attack.privilege-escalation, attack.persistence, attack.t1053.005
+      references: 'https://learn.microsoft.com/en-us/previous-versions/windows/it-pro/windows-10/security/threat-protection/auditing/event-4699
+
+        https://learn.microsoft.com/en-us/previous-versions/windows/it-pro/windows-10/security/threat-protection/auditing/event-4701'
+  - alert: Suspicious_Scheduled_Task_Update
+    expr: event.code:=4702 AND (TaskContentNew:"\\AppData\\Local\\Temp\\" OR TaskContentNew:"\\AppData\\Roaming\\"
+      OR TaskContentNew:"\\Users\\Public\\" OR TaskContentNew:"\\WINDOWS\\Temp\\"
+      OR TaskContentNew:"C:\\Temp\\" OR TaskContentNew:"\\Desktop\\" OR TaskContentNew:"\\Downloads\\"
+      OR TaskContentNew:"\\Temporary Internet" OR TaskContentNew:"C:\\ProgramData\\"
+      OR TaskContentNew:"C:\\Perflogs\\") AND (TaskContentNew:"regsvr32" OR TaskContentNew:"rundll32"
+      OR TaskContentNew:"cmd.exe</Command>" OR TaskContentNew:"cmd</Command>" OR TaskContentNew:"<Arguments>/c
+      " OR TaskContentNew:"<Arguments>/k " OR TaskContentNew:"<Arguments>/r " OR TaskContentNew:"powershell"
+      OR TaskContentNew:"pwsh" OR TaskContentNew:"mshta" OR TaskContentNew:"wscript"
+      OR TaskContentNew:"cscript" OR TaskContentNew:"certutil" OR TaskContentNew:"bitsadmin"
+      OR TaskContentNew:"bash.exe" OR TaskContentNew:"bash " OR TaskContentNew:"scrcons"
+      OR TaskContentNew:"wmic " OR TaskContentNew:"wmic.exe" OR TaskContentNew:"forfiles"
+      OR TaskContentNew:"scriptrunner" OR TaskContentNew:"hh.exe") | stats count()
+      as matches | filter matches:>0
+    for: 0s
+    labels:
+      severity: high
+      sigma_id: 614cf376-6651-47c4-9dcc-6b9527f749f4
+    annotations:
+      summary: Suspicious Scheduled Task Update
+      description: Detects update to a scheduled task event that contain suspicious
+        keywords.
+      author: Nasreddine Bencherchali (Nextron Systems)
+      tags: attack.execution, attack.privilege-escalation, attack.persistence, attack.t1053.005
+      references: https://learn.microsoft.com/en-us/previous-versions/windows/it-pro/windows-10/security/threat-protection/auditing/event-4698
+  - alert: Remote_Service_Activity_via_SVCCTL_Named_Pipe
+    expr: event.code:=5145 AND ShareName:="\\\\*\\IPC$" AND RelativeTargetName:="svcctl"
+      AND AccessList:"WriteData" | stats count() as matches | filter matches:>0
+    for: 0s
+    labels:
+      severity: medium
+      sigma_id: 586a8d6b-6bfe-4ad9-9d78-888cd2fe50c3
+    annotations:
+      summary: Remote Service Activity via SVCCTL Named Pipe
+      description: Detects remote service activity via remote access to the svcctl
+        named pipe
+      author: Samir Bousseaden
+      tags: attack.lateral-movement, attack.persistence, attack.t1021.002
+      references: https://web.archive.org/web/20230329155141/https://blog.menasec.net/2019/03/threat-hunting-26-remote-windows.html
+  - alert: SysKey_Registry_Keys_Access
+    expr: (event.code:in(4656, 4663)) AND ObjectType:="key" AND (ObjectName:~"lsa\\\\JD$"
+      OR ObjectName:~"lsa\\\\GBG$" OR ObjectName:~"lsa\\\\Skew1$" OR ObjectName:~"lsa\\\\Data$")
+      | stats count() as matches | filter matches:>0
+    for: 0s
+    labels:
+      severity: high
+      sigma_id: 9a4ff3b8-6187-4fd2-8e8b-e0eae1129495
+    annotations:
+      summary: SysKey Registry Keys Access
+      description: Detects handle requests and access operations to specific registry
+        keys to calculate the SysKey
+      author: Roberto Rodriguez @Cyb3rWard0g
+      tags: attack.discovery, attack.t1012
+      references: https://threathunterplaybook.com/hunts/windows/190625-RegKeyAccessSyskey/notebook.html
+  - alert: Sysmon_Channel_Reference_Deletion
+    expr: event.code:=4657 AND (ObjectName:"WINEVT\\Publishers\\{5770385f-c22a-43e0-bf4c-06f5698ffbd9}"
+      OR ObjectName:"WINEVT\\Channels\\Microsoft-Windows-Sysmon/Operational") AND
+      ObjectValueName:="Enabled" AND NewValue:=0 OR event.code:=4663 AND (ObjectName:"WINEVT\\Publishers\\{5770385f-c22a-43e0-bf4c-06f5698ffbd9}"
+      OR ObjectName:"WINEVT\\Channels\\Microsoft-Windows-Sysmon/Operational") AND
+      AccessMask:="0x10000" | stats count() as matches | filter matches:>0
+    for: 0s
+    labels:
+      severity: high
+      sigma_id: 18beca67-ab3e-4ee3-ba7a-a46ca8d7d0cc
+    annotations:
+      summary: Sysmon Channel Reference Deletion
+      description: Potential threat actor tampering with Sysmon manifest and eventually
+        disabling it
+      author: Roberto Rodriguez (Cyb3rWard0g), OTR (Open Threat Research)
+      tags: attack.persistence, attack.defense-impairment, attack.t1112
+      references: 'https://twitter.com/Flangvik/status/1283054508084473861
+
+        https://twitter.com/SecurityJosh/status/1283027365770276866
+
+        https://securityjosh.github.io/2020/04/23/Mute-Sysmon.html
+
+        https://gist.github.com/Cyb3rWard0g/cf08c38c61f7e46e8404b38201ca01c8'
+  - alert: Suspicious_Teams_Application_Related_ObjectAcess_Event
+    expr: event.code:=4663 AND (ObjectName:"\\Microsoft\\Teams\\Cookies" OR ObjectName:"\\Microsoft\\Teams\\Local
+      Storage\\leveldb") AND NOT ProcessName:"\\Microsoft\\Teams\\current\\Teams.exe"
+      | stats count() as matches | filter matches:>0
+    for: 0s
+    labels:
+      severity: high
+      sigma_id: 25cde13e-8e20-4c29-b949-4e795b76f16f
+    annotations:
+      summary: Suspicious Teams Application Related ObjectAcess Event
+      description: Detects an access to authentication tokens and accounts of Microsoft
+        Teams desktop application.
+      author: '@SerkinValery'
+      tags: attack.credential-access, attack.t1528
+      references: 'https://www.bleepingcomputer.com/news/security/microsoft-teams-stores-auth-tokens-as-cleartext-in-windows-linux-macs/
+
+        https://www.vectra.ai/blogpost/undermining-microsoft-teams-security-by-mining-tokens'
+  - alert: Transferring_Files_with_Credential_Data_via_Network_Shares
+    expr: event.code:=5145 AND (RelativeTargetName:"\\mimidrv" OR RelativeTargetName:"\\lsass"
+      OR RelativeTargetName:"\\windows\\minidump\\" OR RelativeTargetName:"\\hiberfil"
+      OR RelativeTargetName:"\\sqldmpr" OR RelativeTargetName:in("Windows\\NTDS\\ntds.dit",
+      "Windows\\System32\\config\\SAM", "Windows\\System32\\config\\SECURITY", "Windows\\System32\\config\\SYSTEM"))
+      | stats count() as matches | filter matches:>0
+    for: 0s
+    labels:
+      severity: medium
+      sigma_id: 910ab938-668b-401b-b08c-b596e80fdca5
+    annotations:
+      summary: Transferring Files with Credential Data via Network Shares
+      description: Transferring files with well-known filenames (sensitive files with
+        credential data) using network shares
+      author: Teymur Kheirkhabarov, oscd.community
+      tags: attack.credential-access, attack.t1003.002, attack.t1003.001, attack.t1003.003
+      references: https://www.slideshare.net/heirhabarov/hunting-for-credentials-dumping-in-windows-environment
+  - alert: User_Added_to_Local_Administrator_Group
+    expr: event.code:=4732 AND (user.target.name:="Administr"* OR TargetSid:="S-1-5-32-544")
+      AND NOT user.name:~"\\$$" | stats count() as matches | filter matches:>0
+    for: 0s
+    labels:
+      severity: medium
+      sigma_id: c265cf08-3f99-46c1-8d59-328247057d57
+    annotations:
+      summary: User Added to Local Administrator Group
+      description: Detects the addition of a new member to the local administrator
+        group, which could be legitimate activity or a sign of privilege escalation
+        activity
+      author: Florian Roth (Nextron Systems)
+      tags: attack.initial-access, attack.privilege-escalation, attack.stealth, attack.t1078,
+        attack.persistence, attack.t1098
+      references: 'https://learn.microsoft.com/en-us/previous-versions/windows/it-pro/windows-10/security/threat-protection/auditing/event-4732
+
+        https://learn.microsoft.com/en-us/windows-server/identity/ad-ds/manage/understand-security-identifiers'
+  - alert: User_Couldn_t_Call_a_Privileged_Service_LsaRegisterLogonProcess
+    expr: event.code:=4673 AND Service:="LsaRegisterLogonProcess()" AND Keywords:="0x8010000000000000"
+      | stats count() as matches | filter matches:>0
+    for: 0s
+    labels:
+      severity: high
+      sigma_id: 6daac7fc-77d1-449a-a71a-e6b4d59a0e54
+    annotations:
+      summary: User Couldn't Call a Privileged Service 'LsaRegisterLogonProcess'
+      description: The 'LsaRegisterLogonProcess' function verifies that the application
+        making the function call is a logon process by checking that it has the SeTcbPrivilege
+        privilege set. Possible Rubeus tries to get a handle to LSA.
+      author: Roberto Rodriguez (source), Ilyas Ochkov (rule), oscd.community
+      tags: attack.credential-access, attack.lateral-movement, attack.privilege-escalation,
+        attack.t1558.003
+      references: https://posts.specterops.io/hunting-in-active-directory-unconstrained-delegation-forests-trusts-71f2b33688e1
+  - alert: Potential_Privileged_System_Service_Operation_SeLoadDriverPrivilege
+    expr: event.code:=4673 AND PrivilegeList:="SeLoadDriverPrivilege" AND Service:="-"
+      AND NOT (ProcessName:in("C:\\Windows\\explorer.exe", "C:\\Windows\\HelpPane.exe",
+      "C:\\Windows\\ImmersiveControlPanel\\SystemSettings.exe", "C:\\Windows\\System32\\Dism.exe",
+      "C:\\Windows\\System32\\fltMC.exe", "C:\\Windows\\System32\\mmc.exe", "C:\\Windows\\System32\\rundll32.exe",
+      "C:\\Windows\\System32\\RuntimeBroker.exe", "C:\\Windows\\System32\\ShellHost.exe",
+      "C:\\Windows\\System32\\svchost.exe", "C:\\Windows\\System32\\SystemSettingsBroker.exe",
+      "C:\\Windows\\System32\\wimserv.exe") OR ProcessName:="C:\\Program Files\\WindowsApps\\Microsoft"*)
+      AND NOT (ProcessName:~"\\\\AppData\\\\Local\\\\Microsoft\\\\Teams\\\\current\\\\Teams\\.exe$"
+      OR ProcessName:~"\\\\Google\\\\Chrome\\\\Application\\\\chrome\\.exe$" OR ProcessName:~"\\\\procexp\\.exe$"
+      OR ProcessName:~"\\\\procexp64\\.exe$" OR ProcessName:~"\\\\procexp64a\\.exe$"
+      OR ProcessName:~"\\\\procmon\\.exe$" OR ProcessName:~"\\\\procmon64\\.exe$"
+      OR ProcessName:~"\\\\procmon64a\\.exe$" OR (ProcessName:="C:\\Program Files
+      (x86)\\Dropbox\\"* OR ProcessName:="C:\\Program Files\\Dropbox\\"*) AND ProcessName:~"\\\\Dropbox\\.exe$")
+      | stats count() as matches | filter matches:>0
+    for: 0s
+    labels:
+      severity: medium
+      sigma_id: f63508a0-c809-4435-b3be-ed819394d612
+    annotations:
+      summary: Potential Privileged System Service Operation - SeLoadDriverPrivilege
+      description: 'Detects the usage of the ''SeLoadDriverPrivilege'' privilege.
+        This privilege is required to load or unload a device driver.
+
+        With this privilege, the user can dynamically load and unload device drivers
+        or other code in to kernel mode.
+
+        This user right does not apply to Plug and Play device drivers.
+
+        If you exclude privileged users/admins and processes, which are allowed to
+        do so, you are maybe left with bad programs trying to load malicious kernel
+        drivers.
+
+        This will detect Ghost-In-The-Logs (https://github.com/bats3c/Ghost-In-The-Logs)
+        and the usage of Sysinternals and various other tools. So you have to work
+        with a whitelist to find the bad stuff.
+
+        '
+      author: xknow (@xknow_infosec), xorxes (@xor_xes)
+      tags: attack.defense-impairment, attack.t1685
+      references: 'https://web.archive.org/web/20230331181619/https://blog.dylan.codes/evading-sysmon-and-windows-event-logging/
+
+        https://learn.microsoft.com/en-us/previous-versions/windows/it-pro/windows-10/security/threat-protection/auditing/event-4673'
+  - alert: Windows_Defender_Exclusion_List_Modified
+    expr: event.code:=4657 AND ObjectName:"\\Microsoft\\Windows Defender\\Exclusions\\"
+      | stats count() as matches | filter matches:>0
+    for: 0s
+    labels:
+      severity: medium
+      sigma_id: 46a68649-f218-4f86-aea1-16a759d81820
+    annotations:
+      summary: Windows Defender Exclusion List Modified
+      description: 'Detects modifications to the Windows Defender exclusion registry
+        key. This could indicate a potentially suspicious or even malicious activity
+        by an attacker trying to add a new exclusion in order to bypass security.
+
+        '
+      author: '@BarryShooshooga'
+      tags: attack.defense-impairment, attack.t1685
+      references: https://www.bleepingcomputer.com/news/security/gootkit-malware-bypasses-windows-defender-by-setting-path-exclusions/
+  - alert: Windows_Defender_Exclusion_Registry_Key_Write_Access_Requested
+    expr: (AccessList:"%%4417" OR AccessList:"%%4418") AND (event.code:in(4656, 4663))
+      AND ObjectName:"\\Microsoft\\Windows Defender\\Exclusions\\" | stats count()
+      as matches | filter matches:>0
+    for: 0s
+    labels:
+      severity: medium
+      sigma_id: e9c8808f-4cfb-4ba9-97d4-e5f3beaa244d
+    annotations:
+      summary: Windows Defender Exclusion Registry Key - Write Access Requested
+      description: 'Detects write access requests to the Windows Defender exclusions
+        registry keys. This could be an indication of an attacker trying to request
+        a handle or access the object to write new exclusions in order to bypass security.
+
+        '
+      author: '@BarryShooshooga, Nasreddine Bencherchali (Nextron Systems)'
+      tags: attack.defense-impairment, attack.t1685
+      references: https://www.bleepingcomputer.com/news/security/gootkit-malware-bypasses-windows-defender-by-setting-path-exclusions/
+  - alert: T1047_Wmiprvse_Wbemcomn_DLL_Hijack
+    expr: event.code:=5145 AND RelativeTargetName:~"\\\\wbem\\\\wbemcomn\\.dll$" AND
+      NOT user.name:~"\\$$" | stats count() as matches | filter matches:>0
+    for: 0s
+    labels:
+      severity: high
+      sigma_id: f6c68d5f-e101-4b86-8c84-7d96851fd65c
+    annotations:
+      summary: T1047 Wmiprvse Wbemcomn DLL Hijack
+      description: Detects a threat actor creating a file named `wbemcomn.dll` in
+        the `C:\Windows\System32\wbem\` directory over the network for a WMI DLL Hijack
+        scenario.
+      author: Roberto Rodriguez @Cyb3rWard0g, Open Threat Research (OTR)
+      tags: attack.execution, attack.t1047, attack.lateral-movement, attack.t1021.002
+      references: https://threathunterplaybook.com/hunts/windows/201009-RemoteWMIWbemcomnDLLHijack/notebook.html
+  - alert: WMI_Persistence_Security
+    expr: event.code:=4662 AND ObjectType:="WMI Namespace" AND ObjectName:"subscription"
+      | stats count() as matches | filter matches:>0
+    for: 0s
+    labels:
+      severity: medium
+      sigma_id: f033f3f3-fd24-4995-97d8-a3bb17550a88
+    annotations:
+      summary: WMI Persistence - Security
+      description: Detects suspicious WMI event filter and command line event consumer
+        based on WMI and Security Logs.
+      author: Florian Roth (Nextron Systems), Gleb Sukhodolskiy, Timur Zinniatullin
+        oscd.community
+      tags: attack.persistence, attack.privilege-escalation, attack.t1546.003
+      references: 'https://twitter.com/mattifestation/status/899646620148539397
+
+        https://www.eideon.com/2018-03-02-THL03-WMIBackdoors/'
+  - alert: Potential_Access_Token_Abuse
+    expr: event.code:=4624 AND winlog.logon.type:=9 AND LogonProcessName:="Advapi"
+      AND AuthenticationPackageName:="Negotiate" AND ImpersonationLevel:="%%1833"
+      | stats count() as matches | filter matches:>0
+    for: 0s
+    labels:
+      severity: medium
+      sigma_id: 02f7c9c1-1ae8-4c6a-8add-04693807f92f
+    annotations:
+      summary: Potential Access Token Abuse
+      description: Detects potential token impersonation and theft. Example, when
+        using "DuplicateToken(Ex)" and "ImpersonateLoggedOnUser" with the "LOGON32_LOGON_NEW_CREDENTIALS
+        flag".
+      author: Michaela Adams, Zach Mathis
+      tags: attack.privilege-escalation, attack.stealth, attack.t1134.001, stp.4u
+      references: 'https://www.elastic.co/fr/blog/how-attackers-abuse-access-token-manipulation
+
+        https://www.manageengine.com/log-management/cyber-security/access-token-manipulation.html'
+  - alert: DiagTrackEoP_Default_Login_Username
+    expr: event.code:=4624 AND winlog.logon.type:=9 AND TargetOutboundUserName:="thisisnotvaliduser"
+      | stats count() as matches | filter matches:>0
+    for: 0s
+    labels:
+      severity: critical
+      sigma_id: 2111118f-7e46-4fc8-974a-59fd8ec95196
+    annotations:
+      summary: DiagTrackEoP Default Login Username
+      description: Detects the default "UserName" used by the DiagTrackEoP POC
+      author: Nasreddine Bencherchali (Nextron Systems)
+      tags: attack.privilege-escalation
+      references: https://github.com/Wh04m1001/DiagTrackEoP/blob/3a2fc99c9700623eb7dc7d4b5f314fd9ce5ef51f/main.cpp#L46
+  - alert: Successful_Overpass_the_Hash_Attempt
+    expr: event.code:=4624 AND winlog.logon.type:=9 AND LogonProcessName:="seclogo"
+      AND AuthenticationPackageName:="Negotiate" | stats count() as matches | filter
+      matches:>0
+    for: 0s
+    labels:
+      severity: high
+      sigma_id: 192a0330-c20b-4356-90b6-7b7049ae0b87
+    annotations:
+      summary: Successful Overpass the Hash Attempt
+      description: Detects successful logon with logon type 9 (NewCredentials) which
+        matches the Overpass the Hash behavior of e.g Mimikatz's sekurlsa::pth module.
+      author: Roberto Rodriguez (source), Dominik Schaudel (rule)
+      tags: attack.lateral-movement, attack.s0002, attack.t1550.002
+      references: https://web.archive.org/web/20220419045003/https://cyberwardog.blogspot.com/2017/04/chronicles-of-threat-hunter-hunting-for.html
+  - alert: Pass_the_Hash_Activity_2
+    expr: (event.code:=4624 AND SubjectUserSid:="S-1-0-0" AND winlog.logon.type:=3
+      AND LogonProcessName:="NtLmSsp" AND KeyLength:=0 OR event.code:=4624 AND winlog.logon.type:=9
+      AND LogonProcessName:="seclogo") AND NOT user.target.name:="ANONYMOUS LOGON"
+      | stats count() as matches | filter matches:>0
+    for: 0s
+    labels:
+      severity: medium
+      sigma_id: 8eef149c-bd26-49f2-9e5a-9b00e3af499b
+    annotations:
+      summary: Pass the Hash Activity 2
+      description: Detects the attack technique pass the hash which is used to move
+        laterally inside the network
+      author: Dave Kennedy, Jeff Warren (method) / David Vassallo (rule)
+      tags: attack.lateral-movement, attack.t1550.002
+      references: 'https://github.com/iadgov/Event-Forwarding-Guidance/tree/master/Events
+
+        https://web.archive.org/web/20170909091934/https://blog.binarydefense.com/reliably-detecting-pass-the-hash-through-event-log-analysis
+
+        https://blog.stealthbits.com/how-to-detect-pass-the-hash-attacks/'
+  - alert: RDP_Login_from_Localhost
+    expr: event.code:=4624 AND winlog.logon.type:=10 AND (source.ip:in("::1", "127.0.0.1"))
+      | stats count() as matches | filter matches:>0
+    for: 0s
+    labels:
+      severity: high
+      sigma_id: 51e33403-2a37-4d66-a574-1fda1782cc31
+    annotations:
+      summary: RDP Login from Localhost
+      description: RDP login with localhost source address may be a tunnelled login
+      author: Thomas Patzke
+      tags: attack.lateral-movement, car.2013-07-002, attack.t1021.001
+      references: https://www.fireeye.com/blog/threat-research/2019/01/bypassing-network-restrictions-through-rdp-tunneling.html
+  - alert: External_Remote_RDP_Logon_from_Public_IP
+    expr: event.code:=4624 AND winlog.logon.type:=10 AND NOT (source.ip:ipv6_range("::1/128")
+      OR source.ip:ipv4_range("10.0.0.0/8") OR source.ip:ipv4_range("127.0.0.0/8")
+      OR source.ip:ipv4_range("172.16.0.0/12") OR source.ip:ipv4_range("192.168.0.0/16")
+      OR source.ip:ipv4_range("169.254.0.0/16") OR source.ip:ipv6_range("fc00::/7")
+      OR source.ip:ipv6_range("fe80::/10") OR source.ip:="-") | stats count() as matches
+      | filter matches:>0
+    for: 0s
+    labels:
+      severity: medium
+      sigma_id: 259a9cdf-c4dd-4fa2-b243-2269e5ab18a2
+    annotations:
+      summary: External Remote RDP Logon from Public IP
+      description: Detects successful logon from public IP address via RDP. This can
+        indicate a publicly-exposed RDP port.
+      author: Micah Babinski (@micahbabinski), Zach Mathis (@yamatosecurity)
+      tags: attack.privilege-escalation, attack.persistence, attack.initial-access,
+        attack.credential-access, attack.stealth, attack.t1133, attack.t1078, attack.t1110
+      references: 'https://www.inversecos.com/2020/04/successful-4624-anonymous-logons-to.html
+
+        https://twitter.com/Purp1eW0lf/status/1616144561965002752'
+  - alert: External_Remote_SMB_Logon_from_Public_IP
+    expr: event.code:=4624 AND winlog.logon.type:=3 AND NOT (source.ip:ipv6_range("::1/128")
+      OR source.ip:ipv4_range("10.0.0.0/8") OR source.ip:ipv4_range("127.0.0.0/8")
+      OR source.ip:ipv4_range("172.16.0.0/12") OR source.ip:ipv4_range("192.168.0.0/16")
+      OR source.ip:ipv4_range("169.254.0.0/16") OR source.ip:ipv6_range("fc00::/7")
+      OR source.ip:ipv6_range("fe80::/10") OR source.ip:="-") | stats count() as matches
+      | filter matches:>0
+    for: 0s
+    labels:
+      severity: high
+      sigma_id: 78d5cab4-557e-454f-9fb9-a222bd0d5edc
+    annotations:
+      summary: External Remote SMB Logon from Public IP
+      description: Detects successful logon from public IP address via SMB. This can
+        indicate a publicly-exposed SMB port.
+      author: Micah Babinski (@micahbabinski), Zach Mathis (@yamatosecurity)
+      tags: attack.privilege-escalation, attack.persistence, attack.initial-access,
+        attack.credential-access, attack.stealth, attack.t1133, attack.t1078, attack.t1110
+      references: 'https://www.inversecos.com/2020/04/successful-4624-anonymous-logons-to.html
+
+        https://twitter.com/Purp1eW0lf/status/1616144561965002752'
+  - alert: Failed_Logon_From_Public_IP
+    expr: event.code:=4625 | _time:=4h | stats count() as matches | filter matches:>0
+    for: 0s
+    labels:
+      severity: medium
+      sigma_id: f88e112a-21aa-44bd-9b01-6ee2a2bbbed1
+    annotations:
+      summary: Failed Logon From Public IP
+      description: Detects a failed logon attempt from a public IP. A login from a
+        public IP can indicate a misconfigured firewall or network boundary.
+      author: NVISO
+      tags: attack.privilege-escalation, attack.initial-access, attack.persistence,
+        attack.stealth, attack.t1078, attack.t1190, attack.t1133
+      references: https://learn.microsoft.com/en-us/previous-versions/windows/it-pro/windows-10/security/threat-protection/auditing/event-4625
+  - alert: Potential_Privilege_Escalation_via_Local_Kerberos_Relay_over_LDAP
+    expr: event.code:=4624 AND winlog.logon.type:=3 AND AuthenticationPackageName:="Kerberos"
+      AND source.ip:="127.0.0.1" AND TargetUserSid:="S-1-5-21-"* AND TargetUserSid:~"-500$"
+      AND NOT IpPort:="0" | stats count() as matches | filter matches:>0
+    for: 0s
+    labels:
+      severity: high
+      sigma_id: 749c9f5e-b353-4b90-a9c1-05243357ca4b
+    annotations:
+      summary: Potential Privilege Escalation via Local Kerberos Relay over LDAP
+      description: 'Detects a suspicious local successful logon event where the Logon
+        Package is Kerberos, the remote address is set to localhost, and the target
+        user SID is the built-in local Administrator account.
+
+        This may indicate an attempt to leverage a Kerberos relay attack variant that
+        can be used to elevate privilege locally from a domain joined limited user
+        to local System privileges.
+
+        '
+      author: Elastic, @SBousseaden
+      tags: attack.privilege-escalation, attack.credential-access, attack.t1548
+      references: 'https://twitter.com/sbousseaden/status/1518976397364056071?s=12&t=qKO5eKHvWhAP19a50FTZ7g
+
+        https://github.com/elastic/detection-rules/blob/5fe7833312031a4787e07893e27e4ea7a7665745/rules/_deprecated/privilege_escalation_krbrelayup_suspicious_logon.toml#L38'
+  - alert: RottenPotato_Like_Attack_Pattern
+    expr: event.code:=4624 AND winlog.logon.type:=3 AND user.target.name:="ANONYMOUS
+      LOGON" AND WorkstationName:="-" AND (source.ip:in("127.0.0.1", "::1")) | stats
+      count() as matches | filter matches:>0
+    for: 0s
+    labels:
+      severity: high
+      sigma_id: 16f5d8ca-44bd-47c8-acbe-6fc95a16c12f
+    annotations:
+      summary: RottenPotato Like Attack Pattern
+      description: Detects logon events that have characteristics of events generated
+        during an attack with RottenPotato and the like
+      author: '@SBousseaden, Florian Roth'
+      tags: attack.collection, attack.privilege-escalation, attack.credential-access,
+        attack.t1557.001
+      references: https://twitter.com/SBousseaden/status/1195284233729777665
+  - alert: Windows_Filtering_Platform_Blocked_Connection_From_EDR_Agent_Binary
+    expr: event.code:=5157 AND (Application:~"\\\\AmSvc\\.exe$" OR Application:~"\\\\cb\\.exe$"
+      OR Application:~"\\\\CETASvc\\.exe$" OR Application:~"\\\\CNTAoSMgr\\.exe$"
+      OR Application:~"\\\\CrAmTray\\.exe$" OR Application:~"\\\\CrsSvc\\.exe$" OR
+      Application:~"\\\\CSFalconContainer\\.exe$" OR Application:~"\\\\CSFalconService\\.exe$"
+      OR Application:~"\\\\CybereasonAV\\.exe$" OR Application:~"\\\\CylanceSvc\\.exe$"
+      OR Application:~"\\\\cyserver\\.exe$" OR Application:~"\\\\CyveraService\\.exe$"
+      OR Application:~"\\\\CyvrFsFlt\\.exe$" OR Application:~"\\\\EIConnector\\.exe$"
+      OR Application:~"\\\\elastic-agent\\.exe$" OR Application:~"\\\\elastic-endpoint\\.exe$"
+      OR Application:~"\\\\EndpointBasecamp\\.exe$" OR Application:~"\\\\ExecutionPreventionSvc\\.exe$"
+      OR Application:~"\\\\filebeat\\.exe$" OR Application:~"\\\\fortiedr\\.exe$"
+      OR Application:~"\\\\hmpalert\\.exe$" OR Application:~"\\\\hurukai\\.exe$" OR
+      Application:~"\\\\LogProcessorService\\.exe$" OR Application:~"\\\\mcsagent\\.exe$"
+      OR Application:~"\\\\mcsclient\\.exe$" OR Application:~"\\\\MsMpEng\\.exe$"
+      OR Application:~"\\\\MsSense\\.exe$" OR Application:~"\\\\Ntrtscan\\.exe$" OR
+      Application:~"\\\\PccNTMon\\.exe$" OR Application:~"\\\\QualysAgent\\.exe$"
+      OR Application:~"\\\\RepMgr\\.exe$" OR Application:~"\\\\RepUtils\\.exe$" OR
+      Application:~"\\\\RepUx\\.exe$" OR Application:~"\\\\RepWAV\\.exe$" OR Application:~"\\\\RepWSC\\.exe$"
+      OR Application:~"\\\\sedservice\\.exe$" OR Application:~"\\\\SenseCncProxy\\.exe$"
+      OR Application:~"\\\\SenseIR\\.exe$" OR Application:~"\\\\SenseNdr\\.exe$" OR
+      Application:~"\\\\SenseSampleUploader\\.exe$" OR Application:~"\\\\SentinelAgent\\.exe$"
+      OR Application:~"\\\\SentinelAgentWorker\\.exe$" OR Application:~"\\\\SentinelBrowserNativeHost\\.exe$"
+      OR Application:~"\\\\SentinelHelperService\\.exe$" OR Application:~"\\\\SentinelServiceHost\\.exe$"
+      OR Application:~"\\\\SentinelStaticEngine\\.exe$" OR Application:~"\\\\SentinelStaticEngineScanner\\.exe$"
+      OR Application:~"\\\\sfc\\.exe$" OR Application:~"\\\\sophos ui\\.exe$" OR Application:~"\\\\sophosfilescanner\\.exe$"
+      OR Application:~"\\\\sophosfs\\.exe$" OR Application:~"\\\\sophoshealth\\.exe$"
+      OR Application:~"\\\\sophosips\\.exe$" OR Application:~"\\\\sophosLivequeryservice\\.exe$"
+      OR Application:~"\\\\sophosnetfilter\\.exe$" OR Application:~"\\\\sophosntpservice\\.exe$"
+      OR Application:~"\\\\sophososquery\\.exe$" OR Application:~"\\\\sspservice\\.exe$"
+      OR Application:~"\\\\TaniumClient\\.exe$" OR Application:~"\\\\TaniumCX\\.exe$"
+      OR Application:~"\\\\TaniumDetectEngine\\.exe$" OR Application:~"\\\\TMBMSRV\\.exe$"
+      OR Application:~"\\\\TmCCSF\\.exe$" OR Application:~"\\\\TmListen\\.exe$" OR
+      Application:~"\\\\TmWSCSvc\\.exe$" OR Application:~"\\\\Traps\\.exe$" OR Application:~"\\\\winlogbeat\\.exe$"
+      OR Application:~"\\\\WSCommunicator\\.exe$" OR Application:~"\\\\xagt\\.exe$")
+      | stats count() as matches | filter matches:>0
+    for: 0s
+    labels:
+      severity: high
+      sigma_id: bacf58c6-e199-4040-a94f-95dea0f1e45a
+    annotations:
+      summary: Windows Filtering Platform Blocked Connection From EDR Agent Binary
+      description: 'Detects a Windows Filtering Platform (WFP) blocked connection
+        event involving common Endpoint Detection and Response (EDR) agents.
+
+        Adversaries may use WFP filters to prevent Endpoint Detection and Response
+        (EDR) agents from reporting security events.
+
+        '
+      author: '@gott_cyber'
+      tags: attack.defense-impairment, attack.t1685
+      references: 'https://github.com/netero1010/EDRSilencer
+
+        https://github.com/amjcyber/EDRNoiseMaker
+
+        https://ghoulsec.medium.com/misc-series-4-forensics-on-edrsilencer-events-428b20b3f983'
+
