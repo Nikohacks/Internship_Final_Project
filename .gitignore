@@ -1,0 +1,7 @@
+venv
+.claude
+*/node_modules
+*/.env
+pipeline
+__pycache__
+*/data
