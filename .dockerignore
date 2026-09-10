@@ -1,0 +1,12 @@
+.git
+.gitignore
+venv
+**/node_modules
+**/__pycache__
+**/.pytest_cache
+**/dist
+**/build
+**/*.db
+**/.env
+pipeline/fluentd/opt/fluent/data
+pipeline/fluentd/opt/fluent/log

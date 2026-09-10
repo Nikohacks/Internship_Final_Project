@@ -148,6 +148,40 @@ npm run build
 
 ## Start the Services
 
+## Docker Quick Start
+
+The `dockerized` branch includes a Compose deployment for the application stack. From the repository root, run:
+
+```powershell
+docker compose up --build
+```
+
+Open the dashboard at:
+
+```text
+http://localhost:5173
+```
+
+This starts VictoriaLogs, Fluentd, the FastAPI backend, vmalert, and the production frontend. VictoriaLogs and the backend SQLite database use named Docker volumes, so their data survives container recreation.
+
+To stop the stack:
+
+```powershell
+docker compose down
+```
+
+To stop it and delete stored Docker data:
+
+```powershell
+docker compose down -v
+```
+
+The custom Windows Event Log agent is not containerized in this Compose file because it calls the host Windows Event Log API. Build and run it on the Windows host with `pipeline/agent/agent.yaml`, and enable its `forward` output to send events into the Compose Fluentd service at `127.0.0.1:22424`.
+
+When using the Docker stack, the Fluentd configuration mounted by Compose uses the container service name `victoria-logs`; the host configuration continues to use the host loopback address.
+
+## Manual Start
+
 Use separate PowerShell windows. Start them in this order.
 
 ### 1. VictoriaLogs
