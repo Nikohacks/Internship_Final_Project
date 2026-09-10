@@ -92,7 +92,7 @@ export default function AlertsTable({ alerts, onStatusChange }) {
       </div>
 
       <div className="overflow-x-auto">
-        <table className="min-w-[900px] w-full table-fixed text-base">
+        <table className="min-w-225 w-full table-fixed text-base">
           <thead className="bg-slate-900/60">
             <tr className="border-b border-slate-800 text-left text-xs uppercase tracking-[0.16em] text-slate-500">
               <th className="w-44 border-r border-slate-800 px-5 py-3 font-semibold">State</th>
