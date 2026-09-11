@@ -1,0 +1,83 @@
+services:
+  victoria-logs:
+    image: victoriametrics/victoria-logs:latest
+    command:
+      - -storageDataPath=/vlogs
+      - -httpListenAddr=:9428
+    ports:
+      - "9428:9428"
+    volumes:
+      - victoria_logs_data:/vlogs
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://127.0.0.1:9428/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  fluentd:
+    build:
+      context: .
+      dockerfile: docker/fluentd/Dockerfile
+    depends_on:
+      victoria-logs:
+        condition: service_healthy
+    ports:
+      - "22424:22424"
+      - "22425:22425"
+    volumes:
+      - ./configs/fluentd-configuration/conf.conf:/fluentd/etc/fluent.conf:ro
+    healthcheck:
+      test: ["CMD-SHELL", "ruby -e 'require \"socket\"; TCPSocket.new(\"127.0.0.1\", 22424).close'"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build:
+      context: .
+      dockerfile: docker/backend/Dockerfile
+    environment:
+      DATABASE_URL: sqlite:///./data/alerts.db
+      VICTORIA_LOGS_URL: http://victoria-logs:9428
+      VICTORIA_METRICS_URL: http://victoria-logs:8428
+    depends_on:
+      victoria-logs:
+        condition: service_healthy
+    ports:
+      - "8000:8000"
+    volumes:
+      - backend_data:/app/data
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  vmalert:
+    image: victoriametrics/vmalert:latest
+    command:
+      - --rule=/etc/vmalert/alerts.yml
+      - --datasource.url=http://victoria-logs:9428
+      - --rule.defaultRuleType=vlogs
+      - --notifier.url=http://backend:8000
+    depends_on:
+      backend:
+        condition: service_healthy
+      victoria-logs:
+        condition: service_healthy
+    volumes:
+      - ./configs/vmalert-rules/alerts.yml:/etc/vmalert/alerts.yml:ro
+
+  frontend:
+    build:
+      context: .
+      dockerfile: docker/frontend/Dockerfile
+    depends_on:
+      backend:
+        condition: service_healthy
+    ports:
+      - "5173:80"
+
+volumes:
+  victoria_logs_data:
+  backend_data:
