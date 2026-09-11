@@ -8,11 +8,6 @@ services:
       - "9428:9428"
     volumes:
       - victoria_logs_data:/vlogs
-    healthcheck:
-      test: ["CMD", "wget", "--spider", "-q", "http://127.0.0.1:9428/health"]
-      interval: 10s
-      timeout: 5s
-      retries: 10
 
   fluentd:
     build:
@@ -20,7 +15,7 @@ services:
       dockerfile: docker/fluentd/Dockerfile
     depends_on:
       victoria-logs:
-        condition: service_healthy
+        condition: service_started
     ports:
       - "22424:22424"
       - "22425:22425"
@@ -42,7 +37,7 @@ services:
       VICTORIA_METRICS_URL: http://victoria-logs:8428
     depends_on:
       victoria-logs:
-        condition: service_healthy
+        condition: service_started
     ports:
       - "8000:8000"
     volumes:
@@ -64,7 +59,7 @@ services:
       backend:
         condition: service_healthy
       victoria-logs:
-        condition: service_healthy
+        condition: service_started
     volumes:
       - ./configs/vmalert-rules/alerts.yml:/etc/vmalert/alerts.yml:ro
 
