@@ -333,7 +333,20 @@ func (f *forwardOutput) send(tag string, timestamp int64, record map[string]any)
 	entries := [][]any{{timestamp, record}}
 	frame := encode([]any{tag, entries, map[string]any{}})
 	if err := f.conn.SetWriteDeadline(time.Now().Add(5 * time.Second)); err != nil { return err }
-	if _, err := f.conn.Write(frame); err != nil { _ = f.conn.Close(); f.conn = nil; return err }
+	for len(frame) > 0 {
+		written, err := f.conn.Write(frame)
+		if err != nil {
+			_ = f.conn.Close()
+			f.conn = nil
+			return err
+		}
+		if written == 0 {
+			_ = f.conn.Close()
+			f.conn = nil
+			return errors.New("forward connection wrote zero bytes")
+		}
+		frame = frame[written:]
+	}
 	return nil
 }
 

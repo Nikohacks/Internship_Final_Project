@@ -50,6 +50,8 @@ services:
 
   vmalert:
     image: victoriametrics/vmalert:latest
+    ports:
+      - "8880:8880"
     command:
       - --rule=/etc/vmalert/alerts.yml
       - --datasource.url=http://victoria-logs:9428

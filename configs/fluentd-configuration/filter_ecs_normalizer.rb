@@ -39,11 +39,10 @@ module Fluent::Plugin
 
     # ---------- Linux journald ----------
 
-    # Keyed by SYSLOG_IDENTIFIER. Extend as you cover more daemons.
     JOURNALD_IDENTIFIER_CATEGORY = {
-      'sudo'   => ['authentication', 'privilege_escalation'],
-      'sshd'   => ['authentication'],
-      'su'     => ['authentication', 'privilege_escalation'],
+      'sudo'           => ['authentication', 'privilege_escalation'],
+      'sshd'           => ['authentication'],
+      'su'             => ['authentication', 'privilege_escalation'],
       'systemd-logind' => ['authentication', 'session']
     }.freeze
 
@@ -66,6 +65,8 @@ module Fluent::Plugin
     }.freeze
 
     def filter(tag, time, record)
+      return record unless record.is_a?(Hash)
+
       case tag
       when 'windows.winevtlog'
         normalize_windows(record)
@@ -76,6 +77,9 @@ module Fluent::Plugin
       else
         record
       end
+    rescue StandardError => e
+      log.warn "ecs_normalizer failed to parse record: #{e.message}"
+      record
     end
 
     private
@@ -83,27 +87,46 @@ module Fluent::Plugin
     # ================= WINDOWS =================
 
     def normalize_windows(record)
-      parsed = parse_rendered_text(record['rendered_text'])
+      # Extract fields directly from record if rendered_text is missing or empty
+      parsed = if record['rendered_text'].to_s.strip.empty?
+                 extract_windows_from_record(record)
+               else
+                 parse_rendered_text(record['rendered_text'])
+               end
+
+      # Merge top-level record keys as fallback for missing parsed values
+      parsed['EventID']       ||= record['event_id'] || record['EventID']
+      parsed['ProviderName']  ||= record['provider'] || record['Provider Name']
+      parsed['Channel']       ||= record['channel'] || record['Channel'] || 'Security'
+      parsed['Computer']      ||= record['computer'] || record['Computer']
+      parsed['ProcessID']     ||= record['process_id'] || record['ProcessID']
+      parsed['EventRecordID'] ||= record['event_record_id'] || record['EventRecordID']
+      parsed['ActivityID']    ||= record['activity_id'] || record['ActivityID']
+      parsed['Level']         ||= record['level'] || record['Level']
+      parsed['Message']       ||= record['message'] || record['Message'] || record['rendered_text']
+
       event_id = parsed['EventID'].to_i
       body = parse_message_body(parsed['Message'])
       sel = WIN_EVENTID_FIELD_MAP.fetch(event_id, {})
 
+      channel_str = parsed['Channel'].to_s.downcase
+
       base = {
         'ecs.version'        => '8.11',
         'event.kind'         => 'event',
-        'event.code'         => parsed['EventID'],
-        'event.provider'     => parsed['ProviderName'],
-        'event.dataset'      => "windows.#{parsed['Channel'].to_s.downcase}",
+        'event.code'         => parsed['EventID'].to_s,
+        'event.provider'     => parsed['ProviderName'].to_s,
+        'event.dataset'      => "windows.#{channel_str}",
         'event.category'     => WIN_EVENTID_CATEGORY.fetch(event_id, []),
         'event.type'         => WIN_EVENTID_TYPE.fetch(event_id, []),
-        'host.name'          => parsed['Computer'],
+        'host.name'          => parsed['Computer'].to_s,
         'host.os.family'     => 'windows',
         'process.pid'        => parsed['ProcessID'],
-        'winlog.channel'     => parsed['Channel'],
+        'winlog.channel'     => parsed['Channel'].to_s,
         'winlog.record_id'   => parsed['EventRecordID'],
         'winlog.activity_id' => parsed['ActivityID'],
-        'log.level'          => parsed['Level'],
-        'message'            => parsed['Message'],
+        'log.level'          => parsed['Level'].to_s,
+        'message'            => parsed['Message'].to_s,
         'event.original'     => record.to_json
       }
 
@@ -114,6 +137,20 @@ module Fluent::Plugin
       base['winlog.logon.type'] = body[sel[:logon_type]] if sel[:logon_type]
 
       base
+    end
+
+    def extract_windows_from_record(record)
+      {
+        'EventID'       => record['event_id'] || record['EventID'],
+        'ProviderName'  => record['provider'] || record['Provider Name'],
+        'Channel'       => record['channel'] || record['Channel'],
+        'Computer'      => record['computer'] || record['Computer'],
+        'ProcessID'     => record['process_id'] || record['ProcessID'],
+        'EventRecordID' => record['event_record_id'] || record['EventRecordID'],
+        'ActivityID'    => record['activity_id'] || record['ActivityID'],
+        'Level'         => record['level'] || record['Level'],
+        'Message'       => record['message'] || record['Message']
+      }
     end
 
     def parse_rendered_text(text)
@@ -151,36 +188,34 @@ module Fluent::Plugin
       priority   = record['PRIORITY'].to_i
 
       base = {
-        'ecs.version'          => '8.11',
-        'event.kind'           => 'event',
-        'event.dataset'        => 'linux.journald',
-        'event.provider'       => identifier,
-        'event.category'       => JOURNALD_IDENTIFIER_CATEGORY.fetch(identifier, []),
-        'event.type'           => JOURNALD_IDENTIFIER_TYPE.fetch(identifier, []),
-        'host.name'            => record['_HOSTNAME'],
-        'host.os.family'       => 'linux',
-        'process.name'         => identifier,
-        'process.executable'   => record['_EXE'],
-        'process.pid'          => record['_PID'],
-        'process.command_line' => record['_CMDLINE'],
-        'user.id'               => record['_UID'],
-        'group.id'               => record['_GID'],
+        'ecs.version'             => '8.11',
+        'event.kind'              => 'event',
+        'event.dataset'           => 'linux.journald',
+        'event.provider'          => identifier.to_s,
+        'event.category'          => JOURNALD_IDENTIFIER_CATEGORY.fetch(identifier, []),
+        'event.type'              => JOURNALD_IDENTIFIER_TYPE.fetch(identifier, []),
+        'host.name'               => record['_HOSTNAME'].to_s,
+        'host.os.family'          => 'linux',
+        'process.name'            => identifier.to_s,
+        'process.executable'      => record['_EXE'].to_s,
+        'process.pid'             => record['_PID'],
+        'process.command_line'    => record['_CMDLINE'].to_s,
+        'user.id'                 => record['_UID'],
+        'group.id'                => record['_GID'],
         'log.syslog.priority'     => priority,
         'log.syslog.facility.code'=> facility,
         'log.syslog.facility.name'=> SYSLOG_FACILITY_NAMES[facility],
-        'log.level'                => SYSLOG_SEVERITY_NAMES[priority],
-        'message'                  => record['MESSAGE'],
-        'event.original'           => record.to_json
+        'log.level'               => SYSLOG_SEVERITY_NAMES[priority],
+        'message'                 => record['MESSAGE'].to_s,
+        'event.original'          => record.to_json
       }
 
-      extract_journald_user(base, record['MESSAGE'], identifier)
+      extract_journald_user(base, record['MESSAGE'].to_s, identifier)
       base
     end
 
-    # pam_unix lines commonly carry "for user X" / "by (uid=N)" — cheap,
-    # high-value extraction without full PAM message parsing.
     def extract_journald_user(base, message, identifier)
-      return unless message
+      return if message.empty?
 
       case identifier
       when 'sudo', 'su'
@@ -214,14 +249,14 @@ module Fluent::Plugin
         'ecs.version'       => '8.11',
         'event.kind'        => 'event',
         'event.dataset'     => 'linux.syslog',
-        'event.provider'    => record['ident'],
+        'event.provider'    => record['ident'].to_s,
         'event.category'    => [],
         'event.type'        => [],
-        'host.name'         => record['host'],
+        'host.name'         => record['host'].to_s,
         'host.os.family'    => 'linux',
-        'process.name'      => record['ident'],
+        'process.name'      => record['ident'].to_s,
         'process.pid'       => record['pid'],
-        'message'           => record['message'],
+        'message'           => record['message'].to_s,
         'event.original'    => record.to_json
       }
     end
